@@ -6,11 +6,14 @@ export const networkProtocols = [
   "tpu",
   "repair",
   "metrics",
+  "shreds",
+  "mcast",
 ] as const;
 
 type NetworkProtocol = (typeof networkProtocols)[number];
 export type NetworkMetricsTableRowLabel = "Total";
 
+// For "shreds", the max is a count (shreds/s), not bytes. All other protocols are bytes.
 export const networkMaxByteValues: {
   [key in NetworkMetricsCardType]: {
     [key in NetworkProtocol | NetworkMetricsTableRowLabel]: number;
@@ -22,6 +25,8 @@ export const networkMaxByteValues: {
     tpu: 100_000_000 / 8,
     repair: 1_000_000 / 8,
     metrics: 10_000 / 8,
+    shreds: 100_000, // ~100k shreds/s max for utilization bar
+    mcast: 100_000, // ~100k shreds/s max for utilization bar
     Total: 1_189_010_000 / 8,
   },
   Egress: {
@@ -30,6 +35,8 @@ export const networkMaxByteValues: {
     tpu: 1_000_000 / 8,
     repair: 1_000_000 / 8,
     metrics: 10_000 / 8,
+    shreds: 100_000,
+    mcast: 100_000,
     Total: 2_050_010_000 / 8,
   },
 };

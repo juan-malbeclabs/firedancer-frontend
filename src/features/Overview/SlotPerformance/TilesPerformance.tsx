@@ -135,6 +135,18 @@ export default function TilesPerformance() {
         isExpanded={isExpanded}
         setIsExpanded={setIsExpanded}
       />
+      {tileCounts["txlog"] > 0 && (
+        <TileCard
+          header="txlog"
+          tileCount={tileCounts["txlog"]}
+          liveIdlePerTile={groupedLiveIdlePerTile?.["txlog"]}
+          queryIdlePerTile={showLive ? undefined : queryIdleData?.["txlog"]}
+          statLabel="Txns"
+          metricType="txlog_txns"
+          isExpanded={isExpanded}
+          setIsExpanded={setIsExpanded}
+        />
+      )}
       <TileCard
         header={netType}
         subHeader="(out)"

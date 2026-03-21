@@ -103,6 +103,7 @@ export const tileTypeSchema = z.enum([
   "genesi",
   "diag",
   "event",
+  "txlog",
 ]);
 
 export const tileSchema = z.object({
@@ -214,6 +215,8 @@ export const tilePrimaryMetricSchema = z.object({
   shred: z.number(),
   store: z.number(),
   net_out: z.number(),
+  txlog_batches: z.number(),
+  txlog_txns: z.number(),
 });
 
 export const liveTilePrimaryMetricSchema = z.object({

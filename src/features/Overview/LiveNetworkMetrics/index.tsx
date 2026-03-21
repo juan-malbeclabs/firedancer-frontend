@@ -94,6 +94,10 @@ function NetworkMetricsCard({ metrics, type }: NetworkMetricsCardProps) {
               ) {
                 return;
               }
+              // shreds/mcast count is ingress-only; skip for Egress card
+              if ((protocol === "shreds" || protocol === "mcast") && type === "Egress") {
+                return;
+              }
               return <TableRow key={i} type={type} value={value} idx={i} />;
             })}
             <TableRow
@@ -120,6 +124,12 @@ const emaOptions = {
   halfLifeMs: 1_000,
 };
 
+function formatShredsPerSec(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M /s`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k /s`;
+  return `${Math.round(value)} /s`;
+}
+
 function TableRow({
   type,
   value,
@@ -128,15 +138,18 @@ function TableRow({
   ...props
 }: TableRowProps & Table.RootProps) {
   const emaValue = useEmaValue(value, emaOptions);
-  const formattedValue = formatBytesAsBits(emaValue);
   const rowLabel = label ?? networkProtocols[idx ?? -1];
+  const isShreds = rowLabel === "shreds" || rowLabel === "mcast";
+  const formattedValue = isShreds ? null : formatBytesAsBits(emaValue);
   const maxValue = networkMaxByteValues[type][rowLabel] ?? 100_000_000;
 
   return (
     <Table.Row {...props}>
       <Table.RowHeaderCell>{rowLabel}</Table.RowHeaderCell>
       <Table.Cell align="right">
-        {formattedValue.value} {formattedValue.unit}
+        {isShreds
+          ? formatShredsPerSec(emaValue)
+          : `${formattedValue!.value} ${formattedValue!.unit}`}
       </Table.Cell>
       <Table.Cell className={styles.chart}>
         <Flex align="center">
