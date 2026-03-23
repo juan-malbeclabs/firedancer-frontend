@@ -86,6 +86,7 @@ export default function TxlogCard({
       </Flex>
       <Flex gap="1" wrap="wrap">
         <StatPill label="Batches" metricType="txproc_batches" />
+        <StatPill label="Received" metricType="txproc_received" />
         <StatPill label="DEX" metricType="txproc_dex_txns" />
         <StatPill label="Votes↷" metricType="txproc_votes_skipped" />
         <StatPill label="Parse err" metricType="txproc_parse_errors" isError />
