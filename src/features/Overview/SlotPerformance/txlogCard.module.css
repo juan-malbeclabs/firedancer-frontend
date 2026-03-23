@@ -1,0 +1,24 @@
+.pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 4px;
+  border-radius: 3px;
+  background: #141528;
+  min-width: 42px;
+}
+
+.pill-label {
+  color: #dddee0;
+  font-size: 9px;
+  line-height: 11px;
+  white-space: nowrap;
+}
+
+.pill-value {
+  color: var(--tile-primary-stat-value-color);
+  font-size: 11px;
+  text-align: center;
+  line-height: 14px;
+}

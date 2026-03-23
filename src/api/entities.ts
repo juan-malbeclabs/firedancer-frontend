@@ -217,6 +217,11 @@ export const tilePrimaryMetricSchema = z.object({
   net_out: z.number(),
   txlog_batches: z.number(),
   txlog_txns: z.number(),
+  txlog_votes_skipped: z.number(),
+  txlog_parse_errors: z.number(),
+  txlog_dex_txns: z.number(),
+  txlog_write_errors: z.number(),
+  txlog_truncated: z.number(),
 });
 
 export const liveTilePrimaryMetricSchema = z.object({
