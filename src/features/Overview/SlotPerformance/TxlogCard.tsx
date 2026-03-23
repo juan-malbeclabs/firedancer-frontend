@@ -81,16 +81,16 @@ export default function TxlogCard({
   const header = (
     <Flex direction="column" gap="1">
       <Flex justify="between" align="center" gap="1">
-        <Text className={styles.header}>txlog</Text>
-        <StatPill label="Txns" metricType="txlog_txns" />
+        <Text className={styles.header}>Tx Processor</Text>
+        <StatPill label="Txns" metricType="txproc_txns" />
       </Flex>
       <Flex gap="1" wrap="wrap">
-        <StatPill label="Batches" metricType="txlog_batches" />
-        <StatPill label="DEX" metricType="txlog_dex_txns" />
-        <StatPill label="Votes↷" metricType="txlog_votes_skipped" />
-        <StatPill label="Parse err" metricType="txlog_parse_errors" isError />
-        <StatPill label="Write err" metricType="txlog_write_errors" isError />
-        <StatPill label="Truncated" metricType="txlog_truncated" isError />
+        <StatPill label="Batches" metricType="txproc_batches" />
+        <StatPill label="DEX" metricType="txproc_dex_txns" />
+        <StatPill label="Votes↷" metricType="txproc_votes_skipped" />
+        <StatPill label="Parse err" metricType="txproc_parse_errors" isError />
+        <StatPill label="Write err" metricType="txproc_write_errors" isError />
+        <StatPill label="Truncated" metricType="txproc_truncated" isError />
       </Flex>
     </Flex>
   );

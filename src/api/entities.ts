@@ -103,7 +103,7 @@ export const tileTypeSchema = z.enum([
   "genesi",
   "diag",
   "event",
-  "txlog",
+  "txproc",
 ]);
 
 export const tileSchema = z.object({
@@ -215,13 +215,13 @@ export const tilePrimaryMetricSchema = z.object({
   shred: z.number(),
   store: z.number(),
   net_out: z.number(),
-  txlog_batches: z.number(),
-  txlog_txns: z.number(),
-  txlog_votes_skipped: z.number(),
-  txlog_parse_errors: z.number(),
-  txlog_dex_txns: z.number(),
-  txlog_write_errors: z.number(),
-  txlog_truncated: z.number(),
+  txproc_batches: z.number(),
+  txproc_txns: z.number(),
+  txproc_votes_skipped: z.number(),
+  txproc_parse_errors: z.number(),
+  txproc_dex_txns: z.number(),
+  txproc_write_errors: z.number(),
+  txproc_truncated: z.number(),
 });
 
 export const liveTilePrimaryMetricSchema = z.object({

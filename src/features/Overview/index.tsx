@@ -22,7 +22,7 @@ export default function Overview() {
   const tileCounts = useAtomValue(tileCountAtom);
   const groupedLiveIdlePerTile = useAtomValue(groupedLiveIdlePerTileAtom);
   const hasTxlog =
-    !!tiles?.some((t) => t.kind === "txlog") && tileCounts["txlog"] > 0;
+    !!tiles?.some((t) => t.kind === "txproc") && tileCounts["txproc"] > 0;
 
   return (
     <Flex direction="column" gap="4" flexGrow="1">
@@ -37,12 +37,16 @@ export default function Overview() {
       <SlotPerformance />
       <LiveNetworkMetrics />
       <Flex wrap="wrap" gap="4">
-        <ShredsMetrics />
+        <Flex style={{ flexBasis: "calc(50% - 8px)", flexGrow: 1 }}>
+          <ShredsMetrics />
+        </Flex>
         {hasTxlog && (
-          <TxlogCard
-            tileCount={tileCounts["txlog"]}
-            liveIdlePerTile={groupedLiveIdlePerTile?.["txlog"]}
-          />
+          <Flex style={{ flexBasis: "calc(50% - 8px)", flexGrow: 1 }}>
+            <TxlogCard
+              tileCount={tileCounts["txproc"]}
+              liveIdlePerTile={groupedLiveIdlePerTile?.["txproc"]}
+            />
+          </Flex>
         )}
       </Flex>
       <LiveTileMetrics />
