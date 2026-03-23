@@ -94,15 +94,15 @@ function NetworkMetricsCard({ metrics, type }: NetworkMetricsCardProps) {
               ) {
                 return;
               }
-              // shreds/mcast count is ingress-only; skip for Egress card
-              if ((protocol === "shreds" || protocol === "mcast") && type === "Egress") {
+              // shreds/mcast are shown in the dedicated ShredsMetrics card
+              if (protocol === "shreds" || protocol === "mcast") {
                 return;
               }
               return <TableRow key={i} type={type} value={value} idx={i} />;
             })}
             <TableRow
               type={type}
-              value={sum(metrics)}
+              value={sum(metrics.slice(0, 5))}
               label="Total"
               className={styles.totalRow}
             />
