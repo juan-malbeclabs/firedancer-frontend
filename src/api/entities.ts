@@ -216,6 +216,7 @@ export const tilePrimaryMetricSchema = z.object({
   store: z.number(),
   net_out: z.number(),
   txproc_batches: z.number(),
+  txproc_dedup_skipped: z.number(),
   txproc_received: z.number(),
   txproc_txns: z.number(),
   txproc_votes_skipped: z.number(),

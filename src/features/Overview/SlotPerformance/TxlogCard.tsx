@@ -82,11 +82,12 @@ export default function TxlogCard({
     <Flex direction="column" gap="1">
       <Flex justify="between" align="center" gap="1">
         <Text className={styles.header}>Tx Processor</Text>
-        <StatPill label="Txns" metricType="txproc_txns" />
+        <StatPill label="Received" metricType="txproc_received" />
       </Flex>
       <Flex gap="1" wrap="wrap">
         <StatPill label="Batches" metricType="txproc_batches" />
-        <StatPill label="Received" metricType="txproc_received" />
+        <StatPill label="Dedup↷" metricType="txproc_dedup_skipped" />
+        <StatPill label="Txns" metricType="txproc_txns" />
         <StatPill label="DEX" metricType="txproc_dex_txns" />
         <StatPill label="Votes↷" metricType="txproc_votes_skipped" />
         <StatPill label="Parse err" metricType="txproc_parse_errors" isError />
