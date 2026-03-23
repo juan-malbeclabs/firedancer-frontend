@@ -18,8 +18,6 @@ interface TxlogCardProps {
   tileCount: number;
   liveIdlePerTile?: number[];
   queryIdlePerTile?: number[][];
-  isExpanded?: boolean;
-  setIsExpanded?: (isExpanded: boolean) => void;
 }
 
 interface StatPillProps {
@@ -60,8 +58,6 @@ export default function TxlogCard({
   tileCount,
   liveIdlePerTile,
   queryIdlePerTile,
-  isExpanded = false,
-  setIsExpanded = () => {},
 }: TxlogCardProps) {
   const [ref, { width }] = useMeasure<HTMLDivElement>();
 
@@ -100,7 +96,7 @@ export default function TxlogCard({
   );
 
   return (
-    <Flex ref={ref}>
+    <Flex ref={ref} style={{ flexGrow: 1 }}>
       <Card className={styles.fullWidth}>
         <Flex direction="column" justify="between" height="100%" gap="1">
           {header}
@@ -112,8 +108,8 @@ export default function TxlogCard({
             queryIdlePerTile={queryIdlePerTile}
             width={width}
             header={header}
-            isExpanded={isExpanded}
-            setIsExpanded={setIsExpanded}
+            isExpanded={false}
+            setIsExpanded={() => {}}
           >
             <div className={styles.tileContainer}>
               {tileCountArr.map((_, i) => {

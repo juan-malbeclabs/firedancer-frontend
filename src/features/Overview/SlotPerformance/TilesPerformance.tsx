@@ -1,6 +1,5 @@
 import styles from "./tilesPerformance.module.css";
 import TileCard from "./TileCard";
-import TxlogCard from "./TxlogCard";
 import { useTilesPerformance } from "./useTilesPerformance";
 import { useState } from "react";
 import { useAtomValue } from "jotai";
@@ -136,15 +135,6 @@ export default function TilesPerformance() {
         isExpanded={isExpanded}
         setIsExpanded={setIsExpanded}
       />
-      {tileCounts["txlog"] > 0 && (
-        <TxlogCard
-          tileCount={tileCounts["txlog"]}
-          liveIdlePerTile={groupedLiveIdlePerTile?.["txlog"]}
-          queryIdlePerTile={showLive ? undefined : queryIdleData?.["txlog"]}
-          isExpanded={isExpanded}
-          setIsExpanded={setIsExpanded}
-        />
-      )}
       <TileCard
         header={netType}
         subHeader="(out)"
