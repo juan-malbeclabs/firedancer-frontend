@@ -226,7 +226,7 @@ function useTurbineHealthData(): HealthData {
   }, [isAlerting, isTurbineSlotMissing]);
 }
 
-const turbineIdx = networkProtocols.indexOf("turbine");
+const turbineIdx = networkProtocols.indexOf("turbine.unicast");
 const repairIdx = networkProtocols.indexOf("repair");
 
 /**

@@ -1,7 +1,8 @@
 import { useAtomValue } from "jotai";
 import { liveNetworkMetricsAtom } from "../../../api/atoms";
 import Card from "../../../components/Card";
-import { Flex, Table, Text } from "@radix-ui/themes";
+import { Flex, Table, Text, Tooltip } from "@radix-ui/themes";
+import { InfoCircledIcon } from "@radix-ui/react-icons";
 import tableStyles from "../../Gossip/table.module.css";
 import { useEmaValue } from "../../../hooks/useEma";
 import { headerGap } from "../../Gossip/consts";
@@ -14,9 +15,13 @@ import { tileChartDarkBackground } from "../../../colors";
 const chartHeight = 18;
 const maxShredsPerSec = 100_000;
 
+const SHREDS_IDX = 6;
+const MCAST_IDX = 7;
+const MCAST_NEW_IDX = 8;
+
 const shredSources = [
-  { label: "turbine", idx: 5 },
-  { label: "mcast", idx: 6 },
+  { label: "turbine", idx: SHREDS_IDX },
+  { label: "mcast", idx: MCAST_IDX },
 ] as const;
 
 function formatShredsPerSec(value: number): string {
@@ -47,6 +52,43 @@ function ShredRow({ label, value }: ShredRowProps) {
       <Table.Cell className={styles.chart}>
         <TileSparkLine
           value={Math.min(1, emaValue / maxShredsPerSec)}
+          background={tileChartDarkBackground}
+          windowMs={60_000}
+          height={chartHeight}
+          updateIntervalMs={500}
+          tickMs={1_000}
+        />
+      </Table.Cell>
+    </Table.Row>
+  );
+}
+
+function McastLeadRow({ ingress }: { ingress: number[] }) {
+  const shreds = ingress[SHREDS_IDX] ?? 0;
+  const mcastNew = ingress[MCAST_NEW_IDX] ?? 0;
+  const total = shreds + mcastNew;
+  const pct = total > 0 ? (mcastNew / total) * 100 : 0;
+  const emaPct = useEmaValue(pct, emaOptions);
+
+  return (
+    <Table.Row>
+      <Table.RowHeaderCell>
+        <Flex align="center" gap="1">
+          mcast lead
+          <Tooltip content="% of FEC sets where multicast delivered the shreds before turbine unicast. 100% = all sets arrived first via mcast. Computed over lifetime counters.">
+            <InfoCircledIcon style={{ cursor: "help", opacity: 0.6 }} />
+          </Tooltip>
+        </Flex>
+      </Table.RowHeaderCell>
+      <Table.Cell align="right">{emaPct.toFixed(1)}%</Table.Cell>
+      <Table.Cell className={styles.chart}>
+        <Flex align="center">
+          <Bars value={emaPct} max={100} barWidth={2} />
+        </Flex>
+      </Table.Cell>
+      <Table.Cell className={styles.chart}>
+        <TileSparkLine
+          value={Math.min(1, emaPct / 100)}
           background={tileChartDarkBackground}
           windowMs={60_000}
           height={chartHeight}
@@ -112,6 +154,7 @@ export default function ShredsMetrics() {
                 value={liveNetworkMetrics.ingress[idx] ?? 0}
               />
             ))}
+            <McastLeadRow ingress={liveNetworkMetrics.ingress} />
           </Table.Body>
         </Table.Root>
       </Flex>

@@ -94,15 +94,20 @@ function NetworkMetricsCard({ metrics, type }: NetworkMetricsCardProps) {
               ) {
                 return;
               }
-              // shreds/mcast are shown in the dedicated ShredsMetrics card
-              if (protocol === "shreds" || protocol === "mcast") {
-                return;
+              // shreds/mcast/mcast_new/turbine_dup are shown in the dedicated ShredsMetrics card
+              if (
+                protocol === "shreds" ||
+                protocol === "mcast" ||
+                protocol === "mcast_new" ||
+                protocol === "turbine_dup"
+              ) {
+                return null;
               }
               return <TableRow key={i} type={type} value={value} idx={i} />;
             })}
             <TableRow
               type={type}
-              value={sum(metrics.slice(0, 5))}
+              value={sum(metrics.slice(0, 6))}
               label="Total"
               className={styles.totalRow}
             />
