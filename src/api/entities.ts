@@ -147,9 +147,16 @@ export const estimatedTpsSchema = z.object({
   nonvote_failed: z.number(),
 });
 
+export const mcastSrcSchema = z.object({
+  label: z.string(),
+  shreds: z.number(),
+  bytes: z.number(),
+});
+
 export const liveNetworkMetricsSchema = z.object({
   ingress: z.array(z.number()),
   egress: z.array(z.number()),
+  mcast_srcs: z.array(mcastSrcSchema).optional(),
 });
 
 export const txnWaterfallInSchema = z.object({

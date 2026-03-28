@@ -2,6 +2,7 @@ import type { z } from "zod";
 import type {
   clientSchema,
   identityBalanceSchema,
+  mcastSrcSchema,
   blockEngineStatusSchema,
   blockEngineUpdateSchema,
   clusterSchema,
@@ -106,6 +107,7 @@ export type EstimatedSlotDuration = z.infer<typeof estimatedSlotDurationSchema>;
 export type EstimatedTps = z.infer<typeof estimatedTpsSchema>;
 
 export type LiveNetworkMetrics = z.infer<typeof liveNetworkMetricsSchema>;
+export type McastSrc = z.infer<typeof mcastSrcSchema>;
 
 export type LiveTxnWaterfall = z.infer<typeof liveTxnWaterfallSchema>;
 

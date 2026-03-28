@@ -16,31 +16,36 @@ import {
   tileCountAtom,
   groupedLiveIdlePerTileAtom,
 } from "./SlotPerformance/atoms";
+import { layoutModeAtom } from "../../api/atoms";
 
 export default function Overview() {
   const tiles = useAtomValue(tilesAtom);
   const tileCounts = useAtomValue(tileCountAtom);
   const groupedLiveIdlePerTile = useAtomValue(groupedLiveIdlePerTileAtom);
+  const layoutMode = useAtomValue(layoutModeAtom);
+  const isRelayMode = layoutMode === "shred_relay";
   const hasTxlog =
     !!tiles?.some((t) => t.kind === "txproc") && tileCounts["txproc"] > 0;
 
   return (
     <Flex direction="column" gap="4" flexGrow="1">
-      <SlotTimeline />
-      <Flex gap="16px" align="stretch" wrap="wrap">
-        <EpochCard />
-        <SlotStatusCard />
-        <ValidatorsCard />
-        <TransactionsCard />
-      </Flex>
-      <ShredsProgression />
-      <SlotPerformance />
+      {!isRelayMode && <SlotTimeline />}
+      {!isRelayMode && (
+        <Flex gap="16px" align="stretch" wrap="wrap">
+          <EpochCard />
+          <SlotStatusCard />
+          <ValidatorsCard />
+          <TransactionsCard />
+        </Flex>
+      )}
+      {!isRelayMode && <ShredsProgression />}
+      {!isRelayMode && <SlotPerformance />}
       <LiveNetworkMetrics />
       <Flex wrap="wrap" gap="4">
         <Flex style={{ flexBasis: "calc(50% - 8px)", flexGrow: 1 }}>
           <ShredsMetrics />
         </Flex>
-        {hasTxlog && (
+        {!isRelayMode && hasTxlog && (
           <Flex style={{ flexBasis: "calc(50% - 8px)", flexGrow: 1 }}>
             <TxlogCard
               tileCount={tileCounts["txproc"]}

@@ -11,6 +11,7 @@ import styles from "../LiveNetworkMetrics/liveNetworkMetrics.module.css";
 import { Bars } from "../../StartupProgress/Firedancer/Bars";
 import TileSparkLine from "../SlotPerformance/TileSparkLine";
 import { tileChartDarkBackground } from "../../../colors";
+import { formatBytesAsBits } from "../../../utils";
 
 const chartHeight = 18;
 const maxShredsPerSec = 100_000;
@@ -100,9 +101,51 @@ function McastLeadRow({ ingress }: { ingress: number[] }) {
   );
 }
 
+interface McastSrcRowProps {
+  label: string;
+  shreds: number;
+  bytes: number;
+}
+
+function McastSrcRow({ label, shreds, bytes }: McastSrcRowProps) {
+  const emaShreds = useEmaValue(shreds, emaOptions);
+  const emaBytes = useEmaValue(bytes, emaOptions);
+  const formattedBytes = formatBytesAsBits(emaBytes);
+
+  return (
+    <Table.Row>
+      <Table.RowHeaderCell>{label}</Table.RowHeaderCell>
+      <Table.Cell align="right">
+        {formatShredsPerSec(emaShreds)}
+        <Text size="1" style={{ opacity: 0.6, marginLeft: 4 }}>
+          {formattedBytes.value} {formattedBytes.unit}
+        </Text>
+      </Table.Cell>
+      <Table.Cell className={styles.chart}>
+        <Flex align="center">
+          <Bars value={emaShreds} max={maxShredsPerSec} barWidth={2} />
+        </Flex>
+      </Table.Cell>
+      <Table.Cell className={styles.chart}>
+        <TileSparkLine
+          value={Math.min(1, emaShreds / maxShredsPerSec)}
+          background={tileChartDarkBackground}
+          windowMs={60_000}
+          height={chartHeight}
+          updateIntervalMs={500}
+          tickMs={1_000}
+        />
+      </Table.Cell>
+    </Table.Row>
+  );
+}
+
 export default function ShredsMetrics() {
   const liveNetworkMetrics = useAtomValue(liveNetworkMetricsAtom);
   if (!liveNetworkMetrics) return null;
+
+  const mcastSrcs = liveNetworkMetrics.mcast_srcs;
+  const hasMcastSrcs = mcastSrcs && mcastSrcs.length > 0;
 
   return (
     <Card style={{ flexGrow: 1 }}>
@@ -147,14 +190,26 @@ export default function ShredsMetrics() {
           </Table.Header>
 
           <Table.Body>
-            {shredSources.map(({ label, idx }) => (
-              <ShredRow
-                key={label}
-                label={label}
-                value={liveNetworkMetrics.ingress[idx] ?? 0}
-              />
-            ))}
-            <McastLeadRow ingress={liveNetworkMetrics.ingress} />
+            {!hasMcastSrcs &&
+              shredSources.map(({ label, idx }) => (
+                <ShredRow
+                  key={label}
+                  label={label}
+                  value={liveNetworkMetrics.ingress[idx] ?? 0}
+                />
+              ))}
+            {hasMcastSrcs &&
+              mcastSrcs.map((src) => (
+                <McastSrcRow
+                  key={src.label}
+                  label={src.label}
+                  shreds={src.shreds}
+                  bytes={src.bytes}
+                />
+              ))}
+            {!hasMcastSrcs && (
+              <McastLeadRow ingress={liveNetworkMetrics.ingress} />
+            )}
           </Table.Body>
         </Table.Root>
       </Flex>
