@@ -7,6 +7,7 @@ import EpochCard from "./EpochCard";
 import ShredsProgression from "./ShredsProgression";
 import LiveNetworkMetrics from "./LiveNetworkMetrics";
 import ShredsMetrics from "./ShredsMetrics";
+import ShredSankey from "./ShredsMetrics/ShredSankey";
 import TxlogCard from "./SlotPerformance/TxlogCard";
 import LiveTileMetrics from "./LiveTileMetrics";
 import SlotTimeline from "./SlotTimeline";
@@ -54,6 +55,7 @@ export default function Overview() {
           </Flex>
         )}
       </Flex>
+      <ShredSankey />
       <LiveTileMetrics />
     </Flex>
   );

@@ -16,9 +16,12 @@ import { formatBytesAsBits } from "../../../utils";
 const chartHeight = 18;
 const maxShredsPerSec = 100_000;
 
-const SHREDS_IDX = 6;
-const MCAST_IDX = 7;
-const MCAST_NEW_IDX = 8;
+// Ingress array indices (see networkProtocols in LiveNetworkMetrics/consts.ts)
+const TURBINE_BYTES_IDX = 0; // turbine.unicast bytes
+const SHREDS_IDX = 6; // turbine shred count
+const MCAST_IDX = 7; // mcast shred count
+const MCAST_NEW_IDX = 8; // mcast shreds arriving before turbine
+const TURBINE_DUP_IDX = 9; // turbine shreds that were duplicates
 
 function formatShredsPerSec(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M /s`;
@@ -28,26 +31,28 @@ function formatShredsPerSec(value: number): string {
 
 const emaOptions = { halfLifeMs: 1_000 };
 
-interface ShredRowProps {
-  label: string;
-  value: number;
-}
-
-function ShredRow({ label, value }: ShredRowProps) {
-  const emaValue = useEmaValue(value, emaOptions);
+function TurbineRow({ ingress }: { ingress: number[] }) {
+  const emaShreds = useEmaValue(ingress[SHREDS_IDX] ?? 0, emaOptions);
+  const emaBytes = useEmaValue(ingress[TURBINE_BYTES_IDX] ?? 0, emaOptions);
+  const formattedBytes = formatBytesAsBits(emaBytes);
 
   return (
     <Table.Row>
-      <Table.RowHeaderCell>{label}</Table.RowHeaderCell>
-      <Table.Cell align="right">{formatShredsPerSec(emaValue)}</Table.Cell>
+      <Table.RowHeaderCell>turbine</Table.RowHeaderCell>
+      <Table.Cell align="right">
+        {formatShredsPerSec(emaShreds)}
+        <Text size="1" style={{ opacity: 0.6, marginLeft: 4 }}>
+          {formattedBytes.value} {formattedBytes.unit}
+        </Text>
+      </Table.Cell>
       <Table.Cell className={styles.chart}>
         <Flex align="center">
-          <Bars value={emaValue} max={maxShredsPerSec} barWidth={2} />
+          <Bars value={emaShreds} max={maxShredsPerSec} barWidth={2} />
         </Flex>
       </Table.Cell>
       <Table.Cell className={styles.chart}>
         <TileSparkLine
-          value={Math.min(1, emaValue / maxShredsPerSec)}
+          value={Math.min(1, emaShreds / maxShredsPerSec)}
           background={tileChartDarkBackground}
           windowMs={60_000}
           height={chartHeight}
@@ -135,6 +140,43 @@ function McastSrcRow({ label, shreds, bytes }: McastSrcRowProps) {
   );
 }
 
+function DedupRow({ ingress }: { ingress: number[] }) {
+  const turbineShreds = ingress[SHREDS_IDX] ?? 0;
+  const mcastShreds = ingress[MCAST_IDX] ?? 0;
+  const turbineDup = ingress[TURBINE_DUP_IDX] ?? 0;
+  const unique = Math.max(0, turbineShreds + mcastShreds - turbineDup);
+  const emaUnique = useEmaValue(unique, emaOptions);
+
+  return (
+    <Table.Row className={styles.totalRow}>
+      <Table.RowHeaderCell>
+        <Flex align="center" gap="1">
+          unique
+          <Tooltip content="Net shreds/s after deduplication: (turbine + mcast − turbine duplicates). Represents unique FEC set data entering the validator.">
+            <InfoCircledIcon style={{ cursor: "help", opacity: 0.6 }} />
+          </Tooltip>
+        </Flex>
+      </Table.RowHeaderCell>
+      <Table.Cell align="right">{formatShredsPerSec(emaUnique)}</Table.Cell>
+      <Table.Cell className={styles.chart}>
+        <Flex align="center">
+          <Bars value={emaUnique} max={maxShredsPerSec} barWidth={2} />
+        </Flex>
+      </Table.Cell>
+      <Table.Cell className={styles.chart}>
+        <TileSparkLine
+          value={Math.min(1, emaUnique / maxShredsPerSec)}
+          background={tileChartDarkBackground}
+          windowMs={60_000}
+          height={chartHeight}
+          updateIntervalMs={500}
+          tickMs={1_000}
+        />
+      </Table.Cell>
+    </Table.Row>
+  );
+}
+
 export default function ShredsMetrics() {
   const liveNetworkMetrics = useAtomValue(liveNetworkMetricsAtom);
   if (!liveNetworkMetrics) return null;
@@ -185,10 +227,7 @@ export default function ShredsMetrics() {
           </Table.Header>
 
           <Table.Body>
-            <ShredRow
-              label="turbine"
-              value={liveNetworkMetrics.ingress[SHREDS_IDX] ?? 0}
-            />
+            <TurbineRow ingress={liveNetworkMetrics.ingress} />
             {hasMcastSrcs
               ? mcastSrcs.map((src) => (
                   <McastSrcRow
@@ -199,16 +238,18 @@ export default function ShredsMetrics() {
                   />
                 ))
               : [
-                  <ShredRow
+                  <McastSrcRow
                     key="mcast"
                     label="mcast"
-                    value={liveNetworkMetrics.ingress[MCAST_IDX] ?? 0}
+                    shreds={liveNetworkMetrics.ingress[MCAST_IDX] ?? 0}
+                    bytes={0}
                   />,
                   <McastLeadRow
                     key="mcast-lead"
                     ingress={liveNetworkMetrics.ingress}
                   />,
                 ]}
+            <DedupRow ingress={liveNetworkMetrics.ingress} />
           </Table.Body>
         </Table.Root>
       </Flex>
