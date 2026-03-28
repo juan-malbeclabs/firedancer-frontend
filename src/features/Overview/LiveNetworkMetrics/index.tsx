@@ -8,7 +8,6 @@ import {
   networkMaxByteValues,
   networkProtocols,
   type NetworkMetricsCardType,
-  type NetworkMetricsTableRowLabel,
 } from "./consts";
 import { formatBytesAsBits } from "../../../utils";
 import { Bars } from "../../StartupProgress/Firedancer/Bars";
@@ -20,6 +19,10 @@ import { sum } from "lodash";
 import { tileChartDarkBackground } from "../../../colors";
 import { clientAtom } from "../../../atoms";
 import { ClientEnum } from "../../../api/entities";
+import type { mcastSrcSchema } from "../../../api/entities";
+import type { z } from "zod";
+
+type McastSrc = z.infer<typeof mcastSrcSchema>;
 
 const chartHeight = 18;
 
@@ -29,7 +32,11 @@ export default function LiveNetworkMetrics() {
 
   return (
     <Flex wrap="wrap" gap="4">
-      <NetworkMetricsCard metrics={liveNetworkMetrics.ingress} type="Ingress" />
+      <NetworkMetricsCard
+        metrics={liveNetworkMetrics.ingress}
+        type="Ingress"
+        mcastSrcs={liveNetworkMetrics.mcast_srcs}
+      />
       <NetworkMetricsCard metrics={liveNetworkMetrics.egress} type="Egress" />
     </Flex>
   );
@@ -38,10 +45,16 @@ export default function LiveNetworkMetrics() {
 interface NetworkMetricsCardProps {
   metrics: number[];
   type: NetworkMetricsCardType;
+  mcastSrcs?: McastSrc[];
 }
 
-function NetworkMetricsCard({ metrics, type }: NetworkMetricsCardProps) {
+function NetworkMetricsCard({
+  metrics,
+  type,
+  mcastSrcs,
+}: NetworkMetricsCardProps) {
   const client = useAtomValue(clientAtom);
+  const hasMcastSrcs = type === "Ingress" && mcastSrcs && mcastSrcs.length > 0;
 
   return (
     <Card style={{ flexGrow: 1 }}>
@@ -103,6 +116,20 @@ function NetworkMetricsCard({ metrics, type }: NetworkMetricsCardProps) {
               ) {
                 return null;
               }
+              // Replace the single turbine.multicast row with per-source rows when available
+              if (protocol === "turbine.multicast" && hasMcastSrcs) {
+                return mcastSrcs.map((src) => (
+                  <TableRow
+                    key={src.label}
+                    type={type}
+                    value={src.bytes}
+                    label={src.label}
+                    maxOverride={
+                      networkMaxByteValues[type]["turbine.multicast"]
+                    }
+                  />
+                ));
+              }
               return <TableRow key={i} type={type} value={value} idx={i} />;
             })}
             <TableRow
@@ -122,7 +149,8 @@ interface TableRowProps {
   type: NetworkMetricsCardType;
   value: number;
   idx?: number;
-  label?: NetworkMetricsTableRowLabel;
+  label?: string;
+  maxOverride?: number;
 }
 
 const emaOptions = {
@@ -140,13 +168,17 @@ function TableRow({
   value,
   idx,
   label,
+  maxOverride,
   ...props
 }: TableRowProps & Table.RootProps) {
   const emaValue = useEmaValue(value, emaOptions);
   const rowLabel = label ?? networkProtocols[idx ?? -1];
   const isShreds = rowLabel === "shreds" || rowLabel === "mcast";
   const formattedValue = isShreds ? null : formatBytesAsBits(emaValue);
-  const maxValue = networkMaxByteValues[type][rowLabel] ?? 100_000_000;
+  const maxValue =
+    maxOverride ??
+    (networkMaxByteValues[type] as Record<string, number>)[rowLabel ?? ""] ??
+    100_000_000;
 
   return (
     <Table.Row {...props}>
