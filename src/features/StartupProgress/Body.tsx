@@ -14,6 +14,7 @@ import CompleteStep from "./CompleteStep";
 import LoadingLedgerProgress from "./LedgerProgress";
 import FullSnapshotProgress from "./FullSnapshotProgress";
 import { clientAtom, peersAtom } from "../../atoms";
+import { layoutModeAtom } from "../../api/atoms";
 import IncrementalSnapshotProgress from "./IncrementalSnapshotProgress";
 import { animated, useSpring } from "@react-spring/web";
 import FullSnapshotStats from "./FullSnapshotStats";
@@ -69,6 +70,8 @@ export default function Body() {
   );
   const peers = useAtomValue(peersAtom);
   const hasPeers = !!Object.values(peers).length;
+  const layoutMode = useAtomValue(layoutModeAtom);
+  const isRelayMode = layoutMode === "shred_relay";
 
   const [_hideSteps, setHideSteps] = useState<boolean>();
 
@@ -88,11 +91,13 @@ export default function Body() {
   const hideSteps = _hideSteps === true || _hideSteps === undefined;
 
   useEffect(() => {
-    if (hasPeers && startupProgress?.phase === "running") {
+    // In relay mode peers never arrive (no plugin tile), so hide as soon as running
+    if ((hasPeers || isRelayMode) && startupProgress?.phase === "running") {
       setShowStartupProgress(false);
     }
   }, [
     hasPeers,
+    isRelayMode,
     setShowStartupProgress,
     showStartupProgress,
     startupProgress?.phase,

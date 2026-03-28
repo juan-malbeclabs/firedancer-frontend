@@ -58,6 +58,8 @@ export const scheduleStrategyAtom = atom<ScheduleStrategy | undefined>(
   undefined,
 );
 
+export const layoutModeAtom = atom<string | undefined>(undefined);
+
 export const identityBalanceAtom = atom<IdentityBalance | undefined>(undefined);
 
 export const voteBalanceAtom = atom<VoteBalance | undefined>(undefined);

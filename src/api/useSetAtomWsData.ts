@@ -20,6 +20,7 @@ import {
   voteStateAtom,
   voteBalanceAtom,
   scheduleStrategyAtom,
+  layoutModeAtom,
   slotRankingsAtom,
   bootProgressAtom,
   gossipNetworkStatsAtom,
@@ -121,6 +122,7 @@ export function useSetAtomWsData() {
   const setIdentityBalance = useSetAtom(identityBalanceAtom);
   const setVoteBalance = useSetAtom(voteBalanceAtom);
   const setScheduleStrategy = useSetAtom(scheduleStrategyAtom);
+  const setLayoutMode = useSetAtom(layoutModeAtom);
 
   const [startupTime, setStartupTime] = useAtom(startupTimeAtom);
 
@@ -374,6 +376,10 @@ export function useSetAtomWsData() {
           }
           case "schedule_strategy": {
             setScheduleStrategy(value);
+            break;
+          }
+          case "layout_mode": {
+            setLayoutMode(value);
             break;
           }
           case "identity_balance": {

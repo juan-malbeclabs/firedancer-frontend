@@ -58,6 +58,8 @@ export const startupTimeNanosSchema = z.coerce.bigint();
 export const scheduleStrategySchema = z.enum(["perf", "balanced", "revenue"]);
 export const ScheduleStrategyEnum = scheduleStrategySchema.enum;
 
+export const layoutModeSchema = z.string();
+
 export const tileTypeSchema = z.enum([
   "sock",
   "net",
@@ -477,6 +479,10 @@ export const summarySchema = z.discriminatedUnion("key", [
   summaryTopicSchema.extend({
     key: z.literal("schedule_strategy"),
     value: scheduleStrategySchema,
+  }),
+  summaryTopicSchema.extend({
+    key: z.literal("layout_mode"),
+    value: layoutModeSchema,
   }),
   summaryTopicSchema.extend({
     key: z.literal("tiles"),
