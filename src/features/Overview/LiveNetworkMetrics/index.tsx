@@ -19,6 +19,7 @@ import { sum } from "lodash";
 import { tileChartDarkBackground } from "../../../colors";
 import { clientAtom } from "../../../atoms";
 import { ClientEnum } from "../../../api/entities";
+import { layoutModeAtom } from "../../../api/atoms";
 import type { mcastSrcSchema } from "../../../api/entities";
 import type { z } from "zod";
 
@@ -54,6 +55,8 @@ function NetworkMetricsCard({
   mcastSrcs,
 }: NetworkMetricsCardProps) {
   const client = useAtomValue(clientAtom);
+  const layoutMode = useAtomValue(layoutModeAtom);
+  const isRelayMode = layoutMode === "shred_relay";
   const hasMcastSrcs = type === "Ingress" && mcastSrcs && mcastSrcs.length > 0;
 
   return (
@@ -103,6 +106,7 @@ function NetworkMetricsCard({
               const protocol = networkProtocols[i];
               if (
                 client === ClientEnum.Frankendancer &&
+                !isRelayMode &&
                 (protocol === "gossip" || protocol === "repair")
               ) {
                 return;
