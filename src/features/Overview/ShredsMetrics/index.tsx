@@ -20,11 +20,6 @@ const SHREDS_IDX = 6;
 const MCAST_IDX = 7;
 const MCAST_NEW_IDX = 8;
 
-const shredSources = [
-  { label: "turbine", idx: SHREDS_IDX },
-  { label: "mcast", idx: MCAST_IDX },
-] as const;
-
 function formatShredsPerSec(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M /s`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k /s`;
@@ -190,26 +185,30 @@ export default function ShredsMetrics() {
           </Table.Header>
 
           <Table.Body>
-            {!hasMcastSrcs &&
-              shredSources.map(({ label, idx }) => (
-                <ShredRow
-                  key={label}
-                  label={label}
-                  value={liveNetworkMetrics.ingress[idx] ?? 0}
-                />
-              ))}
-            {hasMcastSrcs &&
-              mcastSrcs.map((src) => (
-                <McastSrcRow
-                  key={src.label}
-                  label={src.label}
-                  shreds={src.shreds}
-                  bytes={src.bytes}
-                />
-              ))}
-            {!hasMcastSrcs && (
-              <McastLeadRow ingress={liveNetworkMetrics.ingress} />
-            )}
+            <ShredRow
+              label="turbine"
+              value={liveNetworkMetrics.ingress[SHREDS_IDX] ?? 0}
+            />
+            {hasMcastSrcs
+              ? mcastSrcs.map((src) => (
+                  <McastSrcRow
+                    key={src.label}
+                    label={src.label}
+                    shreds={src.shreds}
+                    bytes={src.bytes}
+                  />
+                ))
+              : [
+                  <ShredRow
+                    key="mcast"
+                    label="mcast"
+                    value={liveNetworkMetrics.ingress[MCAST_IDX] ?? 0}
+                  />,
+                  <McastLeadRow
+                    key="mcast-lead"
+                    ingress={liveNetworkMetrics.ingress}
+                  />,
+                ]}
           </Table.Body>
         </Table.Root>
       </Flex>
