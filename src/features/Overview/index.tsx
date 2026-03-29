@@ -26,7 +26,7 @@ export default function Overview() {
   const layoutMode = useAtomValue(layoutModeAtom);
   const isRelayMode = layoutMode === "shred_relay";
   const hasTxlog =
-    !!tiles?.some((t) => t.kind === "dexfilter") && tileCounts["dexfilter"] > 0;
+    !!tiles?.some((t) => t.kind === "dexf") && tileCounts["dexf"] > 0;
 
   return (
     <Flex direction="column" gap="4" flexGrow="1">
@@ -50,8 +50,8 @@ export default function Overview() {
         {hasTxlog && (
           <Flex style={{ flexBasis: "calc(50% - 8px)", flexGrow: 1 }}>
             <TxlogCard
-              tileCount={tileCounts["dexfilter"]}
-              liveIdlePerTile={groupedLiveIdlePerTile?.["dexfilter"]}
+              tileCount={tileCounts["dexf"]}
+              liveIdlePerTile={groupedLiveIdlePerTile?.["dexf"]}
             />
           </Flex>
         )}

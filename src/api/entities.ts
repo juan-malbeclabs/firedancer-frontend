@@ -105,7 +105,7 @@ export const tileTypeSchema = z.enum([
   "genesi",
   "diag",
   "event",
-  "dexfilter",
+  "dexf",
 ]);
 
 export const tileSchema = z.object({
@@ -225,15 +225,15 @@ export const tilePrimaryMetricSchema = z.object({
   shred: z.number(),
   store: z.number(),
   net_out: z.number(),
-  dexfilter_batches: z.number(),
-  dexfilter_dedup_skipped: z.number(),
-  dexfilter_received: z.number(),
-  dexfilter_txns: z.number(),
-  dexfilter_votes_skipped: z.number(),
-  dexfilter_parse_errors: z.number(),
-  dexfilter_dex_txns: z.number(),
-  dexfilter_write_errors: z.number(),
-  dexfilter_truncated: z.number(),
+  dexf_batches: z.number(),
+  dexf_dedup_skipped: z.number(),
+  dexf_received: z.number(),
+  dexf_txns: z.number(),
+  dexf_votes_skipped: z.number(),
+  dexf_parse_errors: z.number(),
+  dexf_dex_txns: z.number(),
+  dexf_write_errors: z.number(),
+  dexf_truncated: z.number(),
 });
 
 export const liveTilePrimaryMetricSchema = z.object({
