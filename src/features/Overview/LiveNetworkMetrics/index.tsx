@@ -123,6 +123,8 @@ function NetworkMetricsCard({
           <Table.Body>
             {metrics.map((value, i) => {
               const protocol = networkProtocols[i];
+              // Skip indices beyond the known protocol list (e.g. dedup counters, FEC stats)
+              if (!protocol) return null;
               if (
                 client === ClientEnum.Frankendancer &&
                 !isRelayMode &&
