@@ -15,6 +15,10 @@ const TURBINE_BYTES_IDX = 0;
 const SHREDS_IDX = 6;
 const MCAST_IDX = 7;
 const TURBINE_DUP_IDX = 9;
+const TXPROC_FEC_SETS_IDX = 10;
+
+// Approximate shreds per FEC set for Sankey proportioning
+const AVG_SHREDS_PER_FEC_SET = 32;
 
 const emaOptions = { halfLifeMs: 1_000 };
 
@@ -23,7 +27,8 @@ const NODE_TURBINE_IN = "turbine in";
 const NODE_SHRED_TILE = "shred:tile";
 const NODE_DUP_DROP = "dup drop";
 const NODE_UNIQUE_OUT = "unique";
-const NODE_TURBINE_FWD = "turbine fwd";
+const NODE_TXPROC = "txproc";
+const NODE_SHRED_SEND = "shred send";
 const NODE_MCAST_FWD = "mcast fwd";
 // Single mcast node used when no per-source data is available
 const NODE_MCAST_IN = "mcast in";
@@ -109,6 +114,7 @@ interface SankeyInnerProps {
   turbineDup: number;
   turbineFwdBytes: number;
   mcastFwdBytes: number;
+  txprocFecSets: number;
   height: number;
   width: number;
 }
@@ -120,6 +126,7 @@ function SankeyInner({
   turbineDup,
   turbineFwdBytes,
   mcastFwdBytes,
+  txprocFecSets,
   height,
   width,
 }: SankeyInnerProps) {
@@ -134,8 +141,9 @@ function SankeyInner({
     const t = Math.max(1, turbineShreds);
 
     const avgShredBytes = 1200;
-    const turbineFwdShreds = Math.round(turbineFwdBytes / avgShredBytes);
+    const shredSendShreds = Math.round(turbineFwdBytes / avgShredBytes);
     const mcastFwdShreds = Math.round(mcastFwdBytes / avgShredBytes);
+    const txprocShreds = Math.round(txprocFecSets * AVG_SHREDS_PER_FEC_SET);
 
     const nodes: { id: string }[] = [{ id: NODE_TURBINE_IN }];
 
@@ -150,7 +158,8 @@ function SankeyInner({
     nodes.push({ id: NODE_SHRED_TILE });
     if (dup > 0) nodes.push({ id: NODE_DUP_DROP });
     nodes.push({ id: NODE_UNIQUE_OUT });
-    if (turbineFwdShreds > 0) nodes.push({ id: NODE_TURBINE_FWD });
+    if (txprocShreds > 0) nodes.push({ id: NODE_TXPROC });
+    if (shredSendShreds > 0) nodes.push({ id: NODE_SHRED_SEND });
     if (mcastFwdShreds > 0) nodes.push({ id: NODE_MCAST_FWD });
 
     const links: { source: string; target: string; value: number }[] = [
@@ -185,11 +194,18 @@ function SankeyInner({
       target: NODE_UNIQUE_OUT,
       value: uniqueIn,
     });
-    if (turbineFwdShreds > 0) {
+    if (txprocShreds > 0) {
       links.push({
         source: NODE_UNIQUE_OUT,
-        target: NODE_TURBINE_FWD,
-        value: turbineFwdShreds,
+        target: NODE_TXPROC,
+        value: txprocShreds,
+      });
+    }
+    if (shredSendShreds > 0) {
+      links.push({
+        source: NODE_UNIQUE_OUT,
+        target: NODE_SHRED_SEND,
+        value: shredSendShreds,
       });
     }
     if (mcastFwdShreds > 0) {
@@ -208,6 +224,7 @@ function SankeyInner({
     turbineDup,
     turbineFwdBytes,
     mcastFwdBytes,
+    txprocFecSets,
   ]);
 
   return (
@@ -249,6 +266,8 @@ export default function ShredSankey() {
   const mcastFwdBytesRaw =
     (liveNetworkMetrics?.egress[1] ?? 0) + (liveNetworkMetrics?.egress[6] ?? 0);
   const turbineBytesRaw = liveNetworkMetrics?.ingress[TURBINE_BYTES_IDX] ?? 0;
+  const txprocFecSetsRaw =
+    liveNetworkMetrics?.ingress[TXPROC_FEC_SETS_IDX] ?? 0;
 
   const turbineShreds = useEmaValue(turbineShredsRaw, emaOptions);
   const mcastShreds = useEmaValue(mcastShredsRaw, emaOptions);
@@ -256,6 +275,7 @@ export default function ShredSankey() {
   const turbineFwdBytes = useEmaValue(turbineFwdBytesRaw, emaOptions);
   const mcastFwdBytes = useEmaValue(mcastFwdBytesRaw, emaOptions);
   const turbineBytes = useEmaValue(turbineBytesRaw, emaOptions);
+  const txprocFecSets = useEmaValue(txprocFecSetsRaw, emaOptions);
 
   // Per-source EMA — used when mcast_srcs is available
   const rawSrcs = liveNetworkMetrics?.mcast_srcs;
@@ -308,6 +328,7 @@ export default function ShredSankey() {
                   turbineDup={Math.round(turbineDup)}
                   turbineFwdBytes={turbineFwdBytes}
                   mcastFwdBytes={mcastFwdBytes}
+                  txprocFecSets={Math.round(txprocFecSets)}
                   height={height}
                   width={width}
                 />
