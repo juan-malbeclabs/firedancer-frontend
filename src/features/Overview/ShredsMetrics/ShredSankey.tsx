@@ -150,9 +150,19 @@ function SankeyInner({
     const forwarded = Math.max(1, totalIn - dedup);
 
     const avgShredBytes = 1200;
-    const turbineFwdShreds = Math.round(turbineFwdBytes / avgShredBytes);
-    const mcastFwdShreds = Math.round(mcastFwdBytes / avgShredBytes);
-    const txprocShreds = Math.round(txprocFecSets * AVG_SHREDS_PER_FEC_SET);
+    const turbineFwdShredsRaw = Math.round(turbineFwdBytes / avgShredBytes);
+    const mcastFwdShredsRaw = Math.round(mcastFwdBytes / avgShredBytes);
+    const txprocShredsRaw = Math.round(txprocFecSets * AVG_SHREDS_PER_FEC_SET);
+
+    // Cap downstream links so their sum never exceeds forwarded (flow conservation)
+    const totalOut =
+      turbineFwdShredsRaw + mcastFwdShredsRaw + repairShreds + txprocShredsRaw;
+    const scale =
+      totalOut > forwarded && totalOut > 0 ? forwarded / totalOut : 1;
+    const turbineFwdShreds = Math.round(turbineFwdShredsRaw * scale);
+    const mcastFwdShreds = Math.round(mcastFwdShredsRaw * scale);
+    const repairShredsScaled = Math.round(repairShreds * scale);
+    const txprocShreds = Math.round(txprocShredsRaw * scale);
 
     const nodes: { id: string }[] = [{ id: NODE_TURBINE_IN }];
 
@@ -167,7 +177,7 @@ function SankeyInner({
     nodes.push({ id: NODE_FORWARDED });
     if (turbineFwdShreds > 0) nodes.push({ id: NODE_TURBINE_FWD });
     if (mcastFwdShreds > 0) nodes.push({ id: NODE_MCAST_FWD });
-    if (repairShreds > 0) nodes.push({ id: NODE_REPAIR });
+    if (repairShredsScaled > 0) nodes.push({ id: NODE_REPAIR });
     if (txprocShreds > 0) nodes.push({ id: NODE_TXPROC });
 
     const links: { source: string; target: string; value: number }[] = [
@@ -212,11 +222,11 @@ function SankeyInner({
         value: mcastFwdShreds,
       });
     }
-    if (repairShreds > 0) {
+    if (repairShredsScaled > 0) {
       links.push({
         source: NODE_FORWARDED,
         target: NODE_REPAIR,
-        value: repairShreds,
+        value: repairShredsScaled,
       });
     }
     if (txprocShreds > 0) {
