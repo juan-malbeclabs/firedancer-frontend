@@ -16,6 +16,17 @@ import { headerGap } from "../../Gossip/consts";
 import type { CSSProperties } from "react";
 import styles from "./liveNetworkMetrics.module.css";
 import { sum } from "lodash";
+
+const emaOptions = {
+  halfLifeMs: 1_000,
+};
+
+function getBitsUnit(bitsPerSec: number): { unit: string; divisor: number } {
+  if (bitsPerSec >= 1e9) return { unit: "Gb", divisor: 1e9 };
+  if (bitsPerSec >= 1e6) return { unit: "Mb", divisor: 1e6 };
+  if (bitsPerSec >= 1e3) return { unit: "Kb", divisor: 1e3 };
+  return { unit: "b", divisor: 1 };
+}
 import { tileChartDarkBackground } from "../../../colors";
 import { clientAtom } from "../../../atoms";
 import { ClientEnum } from "../../../api/entities";
@@ -58,6 +69,14 @@ function NetworkMetricsCard({
   const layoutMode = useAtomValue(layoutModeAtom);
   const isRelayMode = layoutMode === "shred_relay";
   const hasMcastSrcs = type === "Ingress" && mcastSrcs && mcastSrcs.length > 0;
+
+  const totalRaw = isRelayMode
+    ? sum(metrics.slice(0, 3))
+    : sum(metrics.slice(0, 6));
+  const totalEma = useEmaValue(totalRaw, emaOptions);
+  const { unit: sharedUnit, divisor: sharedDivisor } = getBitsUnit(
+    totalEma * 8,
+  );
 
   return (
     <Card style={{ flexGrow: 1 }}>
@@ -120,6 +139,15 @@ function NetworkMetricsCard({
               ) {
                 return null;
               }
+              // tpu/repair/metrics don't apply in relay mode
+              if (
+                isRelayMode &&
+                (protocol === "tpu" ||
+                  protocol === "repair" ||
+                  protocol === "metrics")
+              ) {
+                return null;
+              }
               // Replace the single turbine.multicast row with per-source rows when available
               if (protocol === "turbine.multicast" && hasMcastSrcs) {
                 return mcastSrcs.map((src) => (
@@ -131,16 +159,29 @@ function NetworkMetricsCard({
                     maxOverride={
                       networkMaxByteValues[type]["turbine.multicast"]
                     }
+                    sharedUnit={sharedUnit}
+                    sharedDivisor={sharedDivisor}
                   />
                 ));
               }
-              return <TableRow key={i} type={type} value={value} idx={i} />;
+              return (
+                <TableRow
+                  key={i}
+                  type={type}
+                  value={value}
+                  idx={i}
+                  sharedUnit={sharedUnit}
+                  sharedDivisor={sharedDivisor}
+                />
+              );
             })}
             <TableRow
               type={type}
-              value={sum(metrics.slice(0, 6))}
+              value={totalRaw}
               label="Total"
               className={styles.totalRow}
+              sharedUnit={sharedUnit}
+              sharedDivisor={sharedDivisor}
             />
           </Table.Body>
         </Table.Root>
@@ -155,11 +196,9 @@ interface TableRowProps {
   idx?: number;
   label?: string;
   maxOverride?: number;
+  sharedUnit?: string;
+  sharedDivisor?: number;
 }
-
-const emaOptions = {
-  halfLifeMs: 1_000,
-};
 
 function formatShredsPerSec(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M /s`;
@@ -173,25 +212,32 @@ function TableRow({
   idx,
   label,
   maxOverride,
+  sharedUnit,
+  sharedDivisor,
   ...props
 }: TableRowProps & Table.RootProps) {
   const emaValue = useEmaValue(value, emaOptions);
   const rowLabel = label ?? networkProtocols[idx ?? -1];
   const isShreds = rowLabel === "shreds" || rowLabel === "mcast";
-  const formattedValue = isShreds ? null : formatBytesAsBits(emaValue);
   const maxValue =
     maxOverride ??
     (networkMaxByteValues[type] as Record<string, number>)[rowLabel ?? ""] ??
     100_000_000;
 
+  let displayValue: string;
+  if (isShreds) {
+    displayValue = formatShredsPerSec(emaValue);
+  } else if (sharedDivisor !== undefined && sharedUnit !== undefined) {
+    displayValue = `${((emaValue * 8) / sharedDivisor).toFixed(1)} ${sharedUnit}`;
+  } else {
+    const fmt = formatBytesAsBits(emaValue);
+    displayValue = `${fmt.value} ${fmt.unit}`;
+  }
+
   return (
     <Table.Row {...props}>
       <Table.RowHeaderCell>{rowLabel}</Table.RowHeaderCell>
-      <Table.Cell align="right">
-        {isShreds
-          ? formatShredsPerSec(emaValue)
-          : `${formattedValue!.value} ${formattedValue!.unit}`}
-      </Table.Cell>
+      <Table.Cell align="right">{displayValue}</Table.Cell>
       <Table.Cell className={styles.chart}>
         <Flex align="center">
           <Bars value={emaValue} max={maxValue} barWidth={2} />

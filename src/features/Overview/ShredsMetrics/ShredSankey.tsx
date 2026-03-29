@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import { useAtomValue } from "jotai";
 import { liveNetworkMetricsAtom } from "../../../api/atoms";
 import { Sankey } from "../../../sankey";
@@ -8,6 +8,7 @@ import { Flex, Text } from "@radix-ui/themes";
 import tableStyles from "../../Gossip/table.module.css";
 import { headerGap } from "../../Gossip/consts";
 import { useEmaValue } from "../../../hooks/useEma";
+import type { McastSrc } from "../../../api/types";
 
 // Ingress array indices
 const TURBINE_BYTES_IDX = 0;
@@ -17,15 +18,15 @@ const TURBINE_DUP_IDX = 9;
 
 const emaOptions = { halfLifeMs: 1_000 };
 
-const enum ShredNode {
-  TurbineIn = "turbine in",
-  McastIn = "mcast in",
-  ShredTile = "shred:tile",
-  DupDrop = "dup drop",
-  UniqueOut = "unique",
-  TurbineFwd = "turbine fwd",
-  McastFwd = "mcast fwd",
-}
+// Node name constants
+const NODE_TURBINE_IN = "turbine in";
+const NODE_SHRED_TILE = "shred:tile";
+const NODE_DUP_DROP = "dup drop";
+const NODE_UNIQUE_OUT = "unique";
+const NODE_TURBINE_FWD = "turbine fwd";
+const NODE_MCAST_FWD = "mcast fwd";
+// Single mcast node used when no per-source data is available
+const NODE_MCAST_IN = "mcast in";
 
 function formatShredsPerSec(v: number): string {
   if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M/s`;
@@ -39,8 +40,71 @@ function formatMbps(bytes: number): string {
   return `${mbps.toFixed(1)} Mb/s`;
 }
 
+interface PerSrcEmaState {
+  prevValue: number;
+  prevTs: number;
+  ema: number;
+}
+
+/** EMA hook for an array of per-source cumulative counters keyed by label. */
+function useMcastSrcsEma(
+  srcs: McastSrc[] | undefined,
+  halfLifeMs: number,
+): Map<string, number> {
+  const tauMs = halfLifeMs / Math.log(2);
+  const stateRef = useRef<Map<string, PerSrcEmaState>>(new Map());
+  const [result, setResult] = useState<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    if (!srcs || srcs.length === 0) return;
+    const now = performance.now();
+    const newResult = new Map<string, number>();
+
+    for (const src of srcs) {
+      const state = stateRef.current.get(src.label);
+      if (!state) {
+        stateRef.current.set(src.label, {
+          prevValue: src.shreds,
+          prevTs: now,
+          ema: 0,
+        });
+        newResult.set(src.label, 0);
+        continue;
+      }
+      const dtMs = now - state.prevTs;
+      const dv = src.shreds - state.prevValue;
+      if (dv < 0) {
+        // Counter reset — reinitialize
+        stateRef.current.set(src.label, {
+          prevValue: src.shreds,
+          prevTs: now,
+          ema: 0,
+        });
+        newResult.set(src.label, 0);
+        continue;
+      }
+      const rate = dtMs > 0 ? (dv / dtMs) * 1_000 : state.ema;
+      const w = -Math.expm1(-dtMs / tauMs);
+      const ema = state.ema * (1 - w) + rate * w;
+      stateRef.current.set(src.label, {
+        prevValue: src.shreds,
+        prevTs: now,
+        ema,
+      });
+      newResult.set(src.label, Math.max(0, ema));
+    }
+
+    setResult(newResult);
+  }, [srcs, tauMs]);
+
+  return result;
+}
+
 interface SankeyInnerProps {
   turbineShreds: number;
+  /** Per-source mcast data when available (IP:Port → shreds/s) */
+  mcastSrcs: Array<{ label: string; shreds: number }> | null;
+  /** Aggregate fallback when no per-source data */
   mcastShreds: number;
   turbineDup: number;
   turbineFwdBytes: number;
@@ -51,6 +115,7 @@ interface SankeyInnerProps {
 
 function SankeyInner({
   turbineShreds,
+  mcastSrcs,
   mcastShreds,
   turbineDup,
   turbineFwdBytes,
@@ -59,83 +124,102 @@ function SankeyInner({
   width,
 }: SankeyInnerProps) {
   const data = useMemo(() => {
-    const uniqueIn = Math.max(1, turbineShreds + mcastShreds - turbineDup);
+    const hasSrcs = mcastSrcs && mcastSrcs.length > 0;
+    const totalMcast = hasSrcs
+      ? mcastSrcs.reduce((s, src) => s + src.shreds, 0)
+      : mcastShreds;
+
+    const uniqueIn = Math.max(1, turbineShreds + totalMcast - turbineDup);
     const dup = Math.max(0, turbineDup);
     const t = Math.max(1, turbineShreds);
-    const m = Math.max(1, mcastShreds);
 
-    // Estimate forwarding shreds from bytes using avg shred size ~1200 bytes
     const avgShredBytes = 1200;
     const turbineFwdShreds = Math.round(turbineFwdBytes / avgShredBytes);
     const mcastFwdShreds = Math.round(mcastFwdBytes / avgShredBytes);
-    const localShreds = Math.max(
-      1,
-      uniqueIn - turbineFwdShreds - mcastFwdShreds,
-    );
 
-    const nodes = [
-      { id: ShredNode.TurbineIn },
-      { id: ShredNode.McastIn },
-      { id: ShredNode.ShredTile },
-      ...(dup > 0 ? [{ id: ShredNode.DupDrop }] : []),
-      { id: ShredNode.UniqueOut },
-      ...(turbineFwdShreds > 0 ? [{ id: ShredNode.TurbineFwd }] : []),
-      ...(mcastFwdShreds > 0 ? [{ id: ShredNode.McastFwd }] : []),
+    const nodes: { id: string }[] = [{ id: NODE_TURBINE_IN }];
+
+    if (hasSrcs) {
+      for (const src of mcastSrcs) {
+        nodes.push({ id: src.label });
+      }
+    } else {
+      nodes.push({ id: NODE_MCAST_IN });
+    }
+
+    nodes.push({ id: NODE_SHRED_TILE });
+    if (dup > 0) nodes.push({ id: NODE_DUP_DROP });
+    nodes.push({ id: NODE_UNIQUE_OUT });
+    if (turbineFwdShreds > 0) nodes.push({ id: NODE_TURBINE_FWD });
+    if (mcastFwdShreds > 0) nodes.push({ id: NODE_MCAST_FWD });
+
+    const links: { source: string; target: string; value: number }[] = [
+      { source: NODE_TURBINE_IN, target: NODE_SHRED_TILE, value: t },
     ];
 
-    const links = [
-      { source: ShredNode.TurbineIn, target: ShredNode.ShredTile, value: t },
-      { source: ShredNode.McastIn, target: ShredNode.ShredTile, value: m },
-      ...(dup > 0
-        ? [
-            {
-              source: ShredNode.ShredTile,
-              target: ShredNode.DupDrop,
-              value: dup,
-            },
-          ]
-        : []),
-      {
-        source: ShredNode.ShredTile,
-        target: ShredNode.UniqueOut,
-        value: uniqueIn,
-      },
-      ...(turbineFwdShreds > 0
-        ? [
-            {
-              source: ShredNode.UniqueOut,
-              target: ShredNode.TurbineFwd,
-              value: turbineFwdShreds,
-            },
-          ]
-        : []),
-      ...(mcastFwdShreds > 0
-        ? [
-            {
-              source: ShredNode.UniqueOut,
-              target: ShredNode.McastFwd,
-              value: mcastFwdShreds,
-            },
-          ]
-        : []),
-      ...(localShreds > 0 && (turbineFwdShreds > 0 || mcastFwdShreds > 0)
-        ? []
-        : []),
-    ];
+    if (hasSrcs) {
+      for (const src of mcastSrcs) {
+        links.push({
+          source: src.label,
+          target: NODE_SHRED_TILE,
+          value: Math.max(1, src.shreds),
+        });
+      }
+    } else {
+      links.push({
+        source: NODE_MCAST_IN,
+        target: NODE_SHRED_TILE,
+        value: Math.max(1, totalMcast),
+      });
+    }
+
+    if (dup > 0) {
+      links.push({
+        source: NODE_SHRED_TILE,
+        target: NODE_DUP_DROP,
+        value: dup,
+      });
+    }
+    links.push({
+      source: NODE_SHRED_TILE,
+      target: NODE_UNIQUE_OUT,
+      value: uniqueIn,
+    });
+    if (turbineFwdShreds > 0) {
+      links.push({
+        source: NODE_UNIQUE_OUT,
+        target: NODE_TURBINE_FWD,
+        value: turbineFwdShreds,
+      });
+    }
+    if (mcastFwdShreds > 0) {
+      links.push({
+        source: NODE_UNIQUE_OUT,
+        target: NODE_MCAST_FWD,
+        value: mcastFwdShreds,
+      });
+    }
 
     return { nodes, links };
-  }, [turbineShreds, mcastShreds, turbineDup, turbineFwdBytes, mcastFwdBytes]);
+  }, [
+    turbineShreds,
+    mcastSrcs,
+    mcastShreds,
+    turbineDup,
+    turbineFwdBytes,
+    mcastFwdBytes,
+  ]);
 
   return (
     <Sankey
       height={height}
       width={width}
       data={data}
-      margin={{ top: 10, right: 120, bottom: 10, left: 100 }}
+      margin={{ top: 10, right: 120, bottom: 10, left: 130 }}
       align="center"
       isInteractive={false}
       nodeThickness={0}
-      nodeSpacing={40}
+      nodeSpacing={24}
       nodeBorderWidth={0}
       sort="input"
       nodeBorderRadius={0}
@@ -162,9 +246,8 @@ export default function ShredSankey() {
   const mcastShredsRaw = liveNetworkMetrics?.ingress[MCAST_IDX] ?? 0;
   const turbineDupRaw = liveNetworkMetrics?.ingress[TURBINE_DUP_IDX] ?? 0;
   const turbineFwdBytesRaw = liveNetworkMetrics?.egress[0] ?? 0;
-  const mcastFwdBytesRaw = liveNetworkMetrics?.egress[1] ?? 0;
-
-  // Raw bytes for labels (not used in Sankey flow, just for display)
+  const mcastFwdBytesRaw =
+    (liveNetworkMetrics?.egress[1] ?? 0) + (liveNetworkMetrics?.egress[6] ?? 0);
   const turbineBytesRaw = liveNetworkMetrics?.ingress[TURBINE_BYTES_IDX] ?? 0;
 
   const turbineShreds = useEmaValue(turbineShredsRaw, emaOptions);
@@ -174,9 +257,24 @@ export default function ShredSankey() {
   const mcastFwdBytes = useEmaValue(mcastFwdBytesRaw, emaOptions);
   const turbineBytes = useEmaValue(turbineBytesRaw, emaOptions);
 
+  // Per-source EMA — used when mcast_srcs is available
+  const rawSrcs = liveNetworkMetrics?.mcast_srcs;
+  const srcEmaMap = useMcastSrcsEma(rawSrcs, emaOptions.halfLifeMs);
+
+  const mcastSrcs = useMemo(() => {
+    if (!rawSrcs || rawSrcs.length === 0) return null;
+    return rawSrcs.map((src) => ({
+      label: src.label,
+      shreds: Math.round(srcEmaMap.get(src.label) ?? 0),
+    }));
+  }, [rawSrcs, srcEmaMap]);
+
   if (!liveNetworkMetrics) return null;
 
-  const hasData = turbineShreds > 0 || mcastShreds > 0;
+  const mcastSrcTotal = mcastSrcs
+    ? mcastSrcs.reduce((s, src) => s + src.shreds, 0)
+    : 0;
+  const hasData = turbineShreds > 0 || mcastShreds > 0 || mcastSrcTotal > 0;
 
   return (
     <Card style={{ flexGrow: 1 }}>
@@ -205,6 +303,7 @@ export default function ShredSankey() {
               {({ height, width }) => (
                 <SankeyInner
                   turbineShreds={Math.round(turbineShreds)}
+                  mcastSrcs={mcastSrcs}
                   mcastShreds={Math.round(mcastShreds)}
                   turbineDup={Math.round(turbineDup)}
                   turbineFwdBytes={turbineFwdBytes}

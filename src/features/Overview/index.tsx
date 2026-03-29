@@ -42,11 +42,12 @@ export default function Overview() {
       {!isRelayMode && <ShredsProgression />}
       {!isRelayMode && <SlotPerformance />}
       <LiveNetworkMetrics />
+      <ShredSankey />
       <Flex wrap="wrap" gap="4">
         <Flex style={{ flexBasis: "calc(50% - 8px)", flexGrow: 1 }}>
           <ShredsMetrics />
         </Flex>
-        {!isRelayMode && hasTxlog && (
+        {hasTxlog && (
           <Flex style={{ flexBasis: "calc(50% - 8px)", flexGrow: 1 }}>
             <TxlogCard
               tileCount={tileCounts["txproc"]}
@@ -55,7 +56,6 @@ export default function Overview() {
           </Flex>
         )}
       </Flex>
-      <ShredSankey />
       <LiveTileMetrics />
     </Flex>
   );
