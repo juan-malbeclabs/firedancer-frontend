@@ -33,7 +33,7 @@ const NODE_DEDUP_DROP = "dedup drop";
 const NODE_FORWARDED = "forwarded";
 const NODE_TURBINE_FWD = "turbine fwd";
 const NODE_MCAST_FWD = "mcast fwd";
-const NODE_TXPROC = "txproc";
+const NODE_TXPROC = "DEX Transactions";
 const NODE_REPAIR = "repair";
 
 function formatShredsPerSec(v: number): string {
@@ -224,11 +224,17 @@ function SankeyInner({
         }
       }
     }
-    links.push({ source: NODE_MCAST_RCVR, target: NODE_SHREDPROC, value: m });
+    // Route dedup from mcast receiver directly to dedup drop (shows source of discards)
+    const mcastToShredproc = Math.max(1, m - shredprocDedup);
+    links.push({
+      source: NODE_MCAST_RCVR,
+      target: NODE_SHREDPROC,
+      value: mcastToShredproc,
+    });
 
     if (shredprocDedup > 0) {
       links.push({
-        source: NODE_SHREDPROC,
+        source: NODE_MCAST_RCVR,
         target: NODE_DEDUP_DROP,
         value: shredprocDedup,
       });

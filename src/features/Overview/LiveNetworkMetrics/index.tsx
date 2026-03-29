@@ -71,7 +71,8 @@ function NetworkMetricsCard({
   const hasMcastSrcs = type === "Ingress" && mcastSrcs && mcastSrcs.length > 0;
 
   const totalRaw = isRelayMode
-    ? sum(metrics.slice(0, 3))
+    ? sum(metrics.slice(0, 3)) +
+      (metrics[6] ?? 0) /* include mcast relay bytes */
     : type === "Egress"
       ? sum(metrics.slice(0, 7)) /* include mcast relay bytes (idx 6) */
       : sum(metrics.slice(0, 6));
