@@ -82,17 +82,25 @@ export default function TxlogCard({
     <Flex direction="column" gap="1">
       <Flex justify="between" align="center" gap="1">
         <Text className={styles.header}>Tx Processor</Text>
-        <StatPill label="Received" metricType="dexproc_received" />
+        <StatPill label="Received" metricType="dexfilter_received" />
       </Flex>
       <Flex gap="1" wrap="wrap">
-        <StatPill label="Batches" metricType="dexproc_batches" />
-        <StatPill label="Dedup↷" metricType="dexproc_dedup_skipped" />
-        <StatPill label="Txns" metricType="dexproc_txns" />
-        <StatPill label="DEX" metricType="dexproc_dex_txns" />
-        <StatPill label="Votes↷" metricType="dexproc_votes_skipped" />
-        <StatPill label="Parse err" metricType="dexproc_parse_errors" isError />
-        <StatPill label="Write err" metricType="dexproc_write_errors" isError />
-        <StatPill label="Truncated" metricType="dexproc_truncated" isError />
+        <StatPill label="Batches" metricType="dexfilter_batches" />
+        <StatPill label="Dedup↷" metricType="dexfilter_dedup_skipped" />
+        <StatPill label="Txns" metricType="dexfilter_txns" />
+        <StatPill label="DEX" metricType="dexfilter_dex_txns" />
+        <StatPill label="Votes↷" metricType="dexfilter_votes_skipped" />
+        <StatPill
+          label="Parse err"
+          metricType="dexfilter_parse_errors"
+          isError
+        />
+        <StatPill
+          label="Write err"
+          metricType="dexfilter_write_errors"
+          isError
+        />
+        <StatPill label="Truncated" metricType="dexfilter_truncated" isError />
       </Flex>
     </Flex>
   );
