@@ -12,26 +12,29 @@ import type { McastSrc } from "../../../api/types";
 
 // Ingress array indices
 const TURBINE_BYTES_IDX = 0;
-const SHREDS_IDX = 6;
-const MCAST_IDX = 7;
-const TURBINE_DUP_IDX = 9;
-const TXPROC_FEC_SETS_IDX = 10;
-
-// Approximate shreds per FEC set for Sankey proportioning
-const AVG_SHREDS_PER_FEC_SET = 32;
+const SHREDS_IDX = 6; /* turbine shred count */
+const MCAST_IDX = 7; /* mcast shred count */
+const DEDUP_SKIPPED_IDX = 10; /* shreds dropped by smcast as duplicates */
+const OKAY_IDX = 15; /* shreds passing FEC resolver as new (okay) */
+const COMPLETES_IDX = 16; /* shreds completing a FEC set */
+const TXPROC_FEC_SETS_IDX = 17; /* FEC sets forwarded to txproc tile */
 
 const emaOptions = { halfLifeMs: 1_000 };
 
+// Approximate shreds per FEC set for txproc proportioning
+const AVG_SHREDS_PER_FEC_SET = 32;
+
 // Node name constants
 const NODE_TURBINE_IN = "turbine in";
-const NODE_SHRED_TILE = "shred:tile";
-const NODE_DUP_DROP = "dup drop";
-const NODE_UNIQUE_OUT = "unique";
-const NODE_TXPROC = "txproc";
-const NODE_SHRED_SEND = "shred send";
+const NODE_MCAST_RCVR = "mcast receiver"; /* aggregates all multicast sources */
+const NODE_SHREDPROC =
+  "shredproc"; /* smcast tile — deduplicates turbine + mcast */
+const NODE_DEDUP_DROP = "dedup drop";
+const NODE_FORWARDED = "forwarded";
+const NODE_TURBINE_FWD = "turbine fwd";
 const NODE_MCAST_FWD = "mcast fwd";
-// Single mcast node used when no per-source data is available
-const NODE_MCAST_IN = "mcast in";
+const NODE_TXPROC = "txproc";
+const NODE_REPAIR = "repair";
 
 function formatShredsPerSec(v: number): string {
   if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M/s`;
@@ -111,9 +114,12 @@ interface SankeyInnerProps {
   mcastSrcs: Array<{ label: string; shreds: number }> | null;
   /** Aggregate fallback when no per-source data */
   mcastShreds: number;
-  turbineDup: number;
+  dedupSkipped: number;
   turbineFwdBytes: number;
   mcastFwdBytes: number;
+  /** okay + completes from FEC resolver — each generates a repair/replay notification */
+  repairShreds: number;
+  /** FEC sets forwarded to txproc tile */
   txprocFecSets: number;
   height: number;
   width: number;
@@ -123,9 +129,10 @@ function SankeyInner({
   turbineShreds,
   mcastSrcs,
   mcastShreds,
-  turbineDup,
+  dedupSkipped,
   turbineFwdBytes,
   mcastFwdBytes,
+  repairShreds,
   txprocFecSets,
   height,
   width,
@@ -136,12 +143,14 @@ function SankeyInner({
       ? mcastSrcs.reduce((s, src) => s + src.shreds, 0)
       : mcastShreds;
 
-    const uniqueIn = Math.max(1, turbineShreds + totalMcast - turbineDup);
-    const dup = Math.max(0, turbineDup);
     const t = Math.max(1, turbineShreds);
+    const m = Math.max(1, totalMcast);
+    const totalIn = t + m;
+    const dedup = Math.max(0, dedupSkipped);
+    const forwarded = Math.max(1, totalIn - dedup);
 
     const avgShredBytes = 1200;
-    const shredSendShreds = Math.round(turbineFwdBytes / avgShredBytes);
+    const turbineFwdShreds = Math.round(turbineFwdBytes / avgShredBytes);
     const mcastFwdShreds = Math.round(mcastFwdBytes / avgShredBytes);
     const txprocShreds = Math.round(txprocFecSets * AVG_SHREDS_PER_FEC_SET);
 
@@ -151,68 +160,70 @@ function SankeyInner({
       for (const src of mcastSrcs) {
         nodes.push({ id: src.label });
       }
-    } else {
-      nodes.push({ id: NODE_MCAST_IN });
     }
-
-    nodes.push({ id: NODE_SHRED_TILE });
-    if (dup > 0) nodes.push({ id: NODE_DUP_DROP });
-    nodes.push({ id: NODE_UNIQUE_OUT });
-    if (txprocShreds > 0) nodes.push({ id: NODE_TXPROC });
-    if (shredSendShreds > 0) nodes.push({ id: NODE_SHRED_SEND });
+    nodes.push({ id: NODE_MCAST_RCVR });
+    nodes.push({ id: NODE_SHREDPROC });
+    if (dedup > 0) nodes.push({ id: NODE_DEDUP_DROP });
+    nodes.push({ id: NODE_FORWARDED });
+    if (turbineFwdShreds > 0) nodes.push({ id: NODE_TURBINE_FWD });
     if (mcastFwdShreds > 0) nodes.push({ id: NODE_MCAST_FWD });
+    if (repairShreds > 0) nodes.push({ id: NODE_REPAIR });
+    if (txprocShreds > 0) nodes.push({ id: NODE_TXPROC });
 
     const links: { source: string; target: string; value: number }[] = [
-      { source: NODE_TURBINE_IN, target: NODE_SHRED_TILE, value: t },
+      { source: NODE_TURBINE_IN, target: NODE_SHREDPROC, value: t },
     ];
 
     if (hasSrcs) {
       for (const src of mcastSrcs) {
         links.push({
           source: src.label,
-          target: NODE_SHRED_TILE,
+          target: NODE_MCAST_RCVR,
           value: Math.max(1, src.shreds),
         });
       }
-    } else {
-      links.push({
-        source: NODE_MCAST_IN,
-        target: NODE_SHRED_TILE,
-        value: Math.max(1, totalMcast),
-      });
     }
+    links.push({ source: NODE_MCAST_RCVR, target: NODE_SHREDPROC, value: m });
 
-    if (dup > 0) {
+    if (dedup > 0) {
       links.push({
-        source: NODE_SHRED_TILE,
-        target: NODE_DUP_DROP,
-        value: dup,
+        source: NODE_SHREDPROC,
+        target: NODE_DEDUP_DROP,
+        value: dedup,
       });
     }
     links.push({
-      source: NODE_SHRED_TILE,
-      target: NODE_UNIQUE_OUT,
-      value: uniqueIn,
+      source: NODE_SHREDPROC,
+      target: NODE_FORWARDED,
+      value: forwarded,
     });
-    if (txprocShreds > 0) {
+
+    if (turbineFwdShreds > 0) {
       links.push({
-        source: NODE_UNIQUE_OUT,
-        target: NODE_TXPROC,
-        value: txprocShreds,
-      });
-    }
-    if (shredSendShreds > 0) {
-      links.push({
-        source: NODE_UNIQUE_OUT,
-        target: NODE_SHRED_SEND,
-        value: shredSendShreds,
+        source: NODE_FORWARDED,
+        target: NODE_TURBINE_FWD,
+        value: turbineFwdShreds,
       });
     }
     if (mcastFwdShreds > 0) {
       links.push({
-        source: NODE_UNIQUE_OUT,
+        source: NODE_FORWARDED,
         target: NODE_MCAST_FWD,
         value: mcastFwdShreds,
+      });
+    }
+    if (repairShreds > 0) {
+      links.push({
+        source: NODE_FORWARDED,
+        target: NODE_REPAIR,
+        value: repairShreds,
+      });
+    }
+    if (txprocShreds > 0) {
+      links.push({
+        source: NODE_FORWARDED,
+        target: NODE_TXPROC,
+        value: txprocShreds,
       });
     }
 
@@ -221,9 +232,10 @@ function SankeyInner({
     turbineShreds,
     mcastSrcs,
     mcastShreds,
-    turbineDup,
+    dedupSkipped,
     turbineFwdBytes,
     mcastFwdBytes,
+    repairShreds,
     txprocFecSets,
   ]);
 
@@ -261,21 +273,25 @@ export default function ShredSankey() {
 
   const turbineShredsRaw = liveNetworkMetrics?.ingress[SHREDS_IDX] ?? 0;
   const mcastShredsRaw = liveNetworkMetrics?.ingress[MCAST_IDX] ?? 0;
-  const turbineDupRaw = liveNetworkMetrics?.ingress[TURBINE_DUP_IDX] ?? 0;
+  const dedupSkippedRaw = liveNetworkMetrics?.ingress[DEDUP_SKIPPED_IDX] ?? 0;
+  const okayRaw = liveNetworkMetrics?.ingress[OKAY_IDX] ?? 0;
+  const completesRaw = liveNetworkMetrics?.ingress[COMPLETES_IDX] ?? 0;
+  const txprocFecSetsRaw =
+    liveNetworkMetrics?.ingress[TXPROC_FEC_SETS_IDX] ?? 0;
   const turbineFwdBytesRaw = liveNetworkMetrics?.egress[0] ?? 0;
   const mcastFwdBytesRaw =
     (liveNetworkMetrics?.egress[1] ?? 0) + (liveNetworkMetrics?.egress[6] ?? 0);
   const turbineBytesRaw = liveNetworkMetrics?.ingress[TURBINE_BYTES_IDX] ?? 0;
-  const txprocFecSetsRaw =
-    liveNetworkMetrics?.ingress[TXPROC_FEC_SETS_IDX] ?? 0;
 
   const turbineShreds = useEmaValue(turbineShredsRaw, emaOptions);
   const mcastShreds = useEmaValue(mcastShredsRaw, emaOptions);
-  const turbineDup = useEmaValue(turbineDupRaw, emaOptions);
+  const dedupSkipped = useEmaValue(dedupSkippedRaw, emaOptions);
+  const okay = useEmaValue(okayRaw, emaOptions);
+  const completes = useEmaValue(completesRaw, emaOptions);
+  const txprocFecSets = useEmaValue(txprocFecSetsRaw, emaOptions);
   const turbineFwdBytes = useEmaValue(turbineFwdBytesRaw, emaOptions);
   const mcastFwdBytes = useEmaValue(mcastFwdBytesRaw, emaOptions);
   const turbineBytes = useEmaValue(turbineBytesRaw, emaOptions);
-  const txprocFecSets = useEmaValue(txprocFecSetsRaw, emaOptions);
 
   // Per-source EMA — used when mcast_srcs is available
   const rawSrcs = liveNetworkMetrics?.mcast_srcs;
@@ -325,9 +341,10 @@ export default function ShredSankey() {
                   turbineShreds={Math.round(turbineShreds)}
                   mcastSrcs={mcastSrcs}
                   mcastShreds={Math.round(mcastShreds)}
-                  turbineDup={Math.round(turbineDup)}
+                  dedupSkipped={Math.round(dedupSkipped)}
                   turbineFwdBytes={turbineFwdBytes}
                   mcastFwdBytes={mcastFwdBytes}
+                  repairShreds={Math.round(okay + completes)}
                   txprocFecSets={Math.round(txprocFecSets)}
                   height={height}
                   width={width}
