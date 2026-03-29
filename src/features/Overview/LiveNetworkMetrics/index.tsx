@@ -72,7 +72,9 @@ function NetworkMetricsCard({
 
   const totalRaw = isRelayMode
     ? sum(metrics.slice(0, 3))
-    : sum(metrics.slice(0, 6));
+    : type === "Egress"
+      ? sum(metrics.slice(0, 7)) /* include mcast relay bytes (idx 6) */
+      : sum(metrics.slice(0, 6));
   const totalEma = useEmaValue(totalRaw, emaOptions);
   const { unit: sharedUnit, divisor: sharedDivisor } = getBitsUnit(
     totalEma * 8,
@@ -131,6 +133,20 @@ function NetworkMetricsCard({
                 (protocol === "gossip" || protocol === "repair")
               ) {
                 return;
+              }
+              // In Egress, idx 6 ("shreds" in protocol list) is actually mcast relay bytes out — show it
+              if (type === "Egress" && protocol === "shreds") {
+                return (
+                  <TableRow
+                    key="mcast-out"
+                    type={type}
+                    value={value}
+                    label="mcast out"
+                    maxOverride={1_000_000_000 / 8}
+                    sharedUnit={sharedUnit}
+                    sharedDivisor={sharedDivisor}
+                  />
+                );
               }
               // shreds/mcast/mcast_new/turbine_dup are shown in the dedicated ShredsMetrics card
               if (
