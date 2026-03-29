@@ -49,57 +49,73 @@ function formatMbps(bytes: number): string {
 }
 
 interface PerSrcEmaState {
-  prevValue: number;
+  prevShreds: number;
+  prevDedup: number;
   prevTs: number;
-  ema: number;
+  emaShreds: number;
+  emaDedup: number;
 }
 
 /** EMA hook for an array of per-source cumulative counters keyed by label. */
 function useMcastSrcsEma(
   srcs: McastSrc[] | undefined,
   halfLifeMs: number,
-): Map<string, number> {
+): Map<string, { shreds: number; dedup: number }> {
   const tauMs = halfLifeMs / Math.log(2);
   const stateRef = useRef<Map<string, PerSrcEmaState>>(new Map());
-  const [result, setResult] = useState<Map<string, number>>(new Map());
+  const [result, setResult] = useState<
+    Map<string, { shreds: number; dedup: number }>
+  >(new Map());
 
   useEffect(() => {
     if (!srcs || srcs.length === 0) return;
     const now = performance.now();
-    const newResult = new Map<string, number>();
+    const newResult = new Map<string, { shreds: number; dedup: number }>();
 
     for (const src of srcs) {
       const state = stateRef.current.get(src.label);
       if (!state) {
         stateRef.current.set(src.label, {
-          prevValue: src.shreds,
+          prevShreds: src.shreds,
+          prevDedup: src.dedup,
           prevTs: now,
-          ema: 0,
+          emaShreds: 0,
+          emaDedup: 0,
         });
-        newResult.set(src.label, 0);
+        newResult.set(src.label, { shreds: 0, dedup: 0 });
         continue;
       }
       const dtMs = now - state.prevTs;
-      const dv = src.shreds - state.prevValue;
-      if (dv < 0) {
+      const dvShreds = src.shreds - state.prevShreds;
+      const dvDedup = src.dedup - state.prevDedup;
+      if (dvShreds < 0 || dvDedup < 0) {
         // Counter reset — reinitialize
         stateRef.current.set(src.label, {
-          prevValue: src.shreds,
+          prevShreds: src.shreds,
+          prevDedup: src.dedup,
           prevTs: now,
-          ema: 0,
+          emaShreds: 0,
+          emaDedup: 0,
         });
-        newResult.set(src.label, 0);
+        newResult.set(src.label, { shreds: 0, dedup: 0 });
         continue;
       }
-      const rate = dtMs > 0 ? (dv / dtMs) * 1_000 : state.ema;
       const w = -Math.expm1(-dtMs / tauMs);
-      const ema = state.ema * (1 - w) + rate * w;
+      const rateShreds = dtMs > 0 ? (dvShreds / dtMs) * 1_000 : state.emaShreds;
+      const rateDedup = dtMs > 0 ? (dvDedup / dtMs) * 1_000 : state.emaDedup;
+      const emaShreds = state.emaShreds * (1 - w) + rateShreds * w;
+      const emaDedup = state.emaDedup * (1 - w) + rateDedup * w;
       stateRef.current.set(src.label, {
-        prevValue: src.shreds,
+        prevShreds: src.shreds,
+        prevDedup: src.dedup,
         prevTs: now,
-        ema,
+        emaShreds,
+        emaDedup,
       });
-      newResult.set(src.label, Math.max(0, ema));
+      newResult.set(src.label, {
+        shreds: Math.max(0, emaShreds),
+        dedup: Math.max(0, emaDedup),
+      });
     }
 
     setResult(newResult);
@@ -110,8 +126,8 @@ function useMcastSrcsEma(
 
 interface SankeyInnerProps {
   turbineShreds: number;
-  /** Per-source mcast data when available (IP:Port → shreds/s) */
-  mcastSrcs: Array<{ label: string; shreds: number }> | null;
+  /** Per-source mcast data when available (IP:Port → shreds/s + dedup/s) */
+  mcastSrcs: Array<{ label: string; shreds: number; dedup: number }> | null;
   /** Aggregate fallback when no per-source data */
   mcastShreds: number;
   dedupSkipped: number;
@@ -146,8 +162,16 @@ function SankeyInner({
     const t = Math.max(1, turbineShreds);
     const m = Math.max(1, totalMcast);
     const totalIn = t + m;
-    const dedup = Math.max(0, dedupSkipped);
-    const forwarded = Math.max(1, totalIn - dedup);
+
+    // Per-source race losses (before_credit path in smcast tile)
+    const mcastSrcDedupTotal = hasSrcs
+      ? mcastSrcs.reduce((s, src) => s + src.dedup, 0)
+      : 0;
+    // Remaining dedup = after_frag turbine-vs-mcast dups
+    const shredprocDedup = Math.max(0, dedupSkipped - mcastSrcDedupTotal);
+    const totalDedup = mcastSrcDedupTotal + shredprocDedup;
+    // Per-source dups bypass shredproc, so forwarded excludes only after_frag dups
+    const forwarded = Math.max(1, totalIn - shredprocDedup);
 
     const avgShredBytes = 1200;
     const turbineFwdShredsRaw = Math.round(turbineFwdBytes / avgShredBytes);
@@ -173,7 +197,7 @@ function SankeyInner({
     }
     nodes.push({ id: NODE_MCAST_RCVR });
     nodes.push({ id: NODE_SHREDPROC });
-    if (dedup > 0) nodes.push({ id: NODE_DEDUP_DROP });
+    if (totalDedup > 0) nodes.push({ id: NODE_DEDUP_DROP });
     nodes.push({ id: NODE_FORWARDED });
     if (turbineFwdShreds > 0) nodes.push({ id: NODE_TURBINE_FWD });
     if (mcastFwdShreds > 0) nodes.push({ id: NODE_MCAST_FWD });
@@ -191,15 +215,22 @@ function SankeyInner({
           target: NODE_MCAST_RCVR,
           value: Math.max(1, src.shreds),
         });
+        if (src.dedup > 0) {
+          links.push({
+            source: src.label,
+            target: NODE_DEDUP_DROP,
+            value: src.dedup,
+          });
+        }
       }
     }
     links.push({ source: NODE_MCAST_RCVR, target: NODE_SHREDPROC, value: m });
 
-    if (dedup > 0) {
+    if (shredprocDedup > 0) {
       links.push({
         source: NODE_SHREDPROC,
         target: NODE_DEDUP_DROP,
-        value: dedup,
+        value: shredprocDedup,
       });
     }
     links.push({
@@ -311,7 +342,8 @@ export default function ShredSankey() {
     if (!rawSrcs || rawSrcs.length === 0) return null;
     return rawSrcs.map((src) => ({
       label: src.label,
-      shreds: Math.round(srcEmaMap.get(src.label) ?? 0),
+      shreds: Math.round(srcEmaMap.get(src.label)?.shreds ?? 0),
+      dedup: Math.round(srcEmaMap.get(src.label)?.dedup ?? 0),
     }));
   }, [rawSrcs, srcEmaMap]);
 

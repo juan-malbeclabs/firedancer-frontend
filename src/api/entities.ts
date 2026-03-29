@@ -151,6 +151,7 @@ export const mcastSrcSchema = z.object({
   label: z.string(),
   shreds: z.number(),
   bytes: z.number(),
+  dedup: z.number().default(0),
 });
 
 export const liveNetworkMetricsSchema = z.object({
