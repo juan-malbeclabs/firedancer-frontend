@@ -378,8 +378,7 @@ export default function ShredRaceHistoryCard() {
 
           {/* ─── x-axis tick labels ─── */}
           {X_TICKS.map((sAgo) => {
-            const slot = MAX_BUCKETS - 1 - sAgo;
-            const x = ML + (slot + 0.5) * barW;
+            const x = ML + (MAX_BUCKETS - sAgo) * barW;
             const label = sAgo === 0 ? "now" : `-${sAgo / 60}m`;
             return (
               <text

@@ -205,8 +205,7 @@ function SankeyInner({
       }
     }
 
-    // Column 1: mcast receiver first (above dedup drops), then dedup drop nodes
-    nodes.push({ id: NODE_MCAST_RCVR });
+    // Column 1: dedup drop nodes first (aligned with turbine band), then mcast receiver below
     if (shredprocDedup > 0)
       nodes.push({ id: NODE_TURBINE_DEDUP, fixedLayer: 1 });
     if (hasSrcs) {
@@ -217,6 +216,7 @@ function SankeyInner({
     } else if (mcastSrcDedupTotal > 0) {
       nodes.push({ id: NODE_DEDUP_DROP, fixedLayer: 1 });
     }
+    nodes.push({ id: NODE_MCAST_RCVR, fixedLayer: 1 });
 
     nodes.push({ id: NODE_SHREDPROC });
     nodes.push({ id: NODE_FORWARDED });

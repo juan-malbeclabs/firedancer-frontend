@@ -68,8 +68,8 @@ export default function Overview() {
           </Badge>
         </Flex>
         <LiveNetworkMetrics />
-        <ShredRaceHistoryCard />
         <ShredSankey />
+        <ShredRaceHistoryCard />
         <Flex wrap="wrap" gap="4">
           <Flex style={{ flexBasis: "calc(50% - 8px)", flexGrow: 1 }}>
             <ShredsMetrics />
