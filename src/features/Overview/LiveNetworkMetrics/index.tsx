@@ -7,9 +7,18 @@ import { useEmaValue } from "../../../hooks/useEma";
 import {
   networkProtocols,
   NETWORK_LINK_MAX_BYTES,
-  NETWORK_TOTAL_MAX_BYTES,
   type NetworkMetricsCardType,
 } from "./consts";
+
+const CEIL_STEPS_MBPS = [100, 200, 500, 1_000, 2_000, 5_000, 10_000];
+
+function dynamicCeiling(bytesPerSec: number): number {
+  const mbps = (bytesPerSec * 8) / 1_000_000;
+  for (const step of CEIL_STEPS_MBPS) {
+    if (mbps <= step) return (step / 8) * 1_000_000;
+  }
+  return (10_000 / 8) * 1_000_000;
+}
 import { formatBytesAsBits } from "../../../utils";
 import { Bars } from "../../StartupProgress/Firedancer/Bars";
 import TileSparkLine from "../SlotPerformance/TileSparkLine";
@@ -70,6 +79,9 @@ function NetworkMetricsCard({
     : type === "Egress"
       ? sum(metrics.slice(0, 7)) /* include mcast relay bytes (idx 6) */
       : sum(metrics.slice(0, 6));
+
+  const emaTotal = useEmaValue(totalRaw, emaOptions);
+  const dynMax = dynamicCeiling(emaTotal);
 
   return (
     <Card style={{ flexGrow: 1 }}>
@@ -133,7 +145,7 @@ function NetworkMetricsCard({
                     type={type}
                     value={value}
                     label="mcast out"
-                    maxOverride={NETWORK_LINK_MAX_BYTES}
+                    maxOverride={dynMax}
                   />
                 );
               }
@@ -163,7 +175,7 @@ function NetworkMetricsCard({
                     type={type}
                     value={src.bytes}
                     label={src.grp_label ?? src.label}
-                    maxOverride={NETWORK_LINK_MAX_BYTES}
+                    maxOverride={dynMax}
                   />
                 ));
               }
@@ -173,7 +185,7 @@ function NetworkMetricsCard({
               type={type}
               value={totalRaw}
               label="Total"
-              maxOverride={NETWORK_TOTAL_MAX_BYTES}
+              maxOverride={dynMax}
               className={styles.totalRow}
             />
           </Table.Body>

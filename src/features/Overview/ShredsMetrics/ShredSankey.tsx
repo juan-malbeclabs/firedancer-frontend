@@ -429,7 +429,7 @@ export default function ShredSankey() {
           </Flex>
         </Flex>
         {hasData ? (
-          <div style={{ flexGrow: 1, minHeight: 180 }}>
+          <div style={{ flexGrow: 1, minHeight: 234 }}>
             <AutoSizer>
               {({ height, width }) => (
                 <SankeyInner
