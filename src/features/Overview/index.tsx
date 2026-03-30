@@ -67,15 +67,24 @@ export default function Overview() {
             Shred Relay Mode
           </Badge>
         </Flex>
-        <ShredsRow
-          hasTxlog={hasTxlog}
-          tileCounts={tileCounts}
-          groupedLiveIdlePerTile={groupedLiveIdlePerTile}
-        />
-        <LiveTileMetrics />
+        <LiveNetworkMetrics />
         <ShredRaceHistoryCard />
         <ShredSankey />
-        <LiveNetworkMetrics />
+        <Flex wrap="wrap" gap="4">
+          <Flex style={{ flexBasis: "calc(50% - 8px)", flexGrow: 1 }}>
+            <ShredsMetrics />
+          </Flex>
+          <Flex style={{ flexBasis: "calc(50% - 8px)", flexGrow: 1 }}>
+            <ShredRaceCard />
+          </Flex>
+        </Flex>
+        {hasTxlog && (
+          <TxlogCard
+            tileCount={tileCounts["dexf"]}
+            liveIdlePerTile={groupedLiveIdlePerTile?.["dexf"]}
+          />
+        )}
+        <LiveTileMetrics />
       </Flex>
     );
   }

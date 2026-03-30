@@ -19,16 +19,16 @@ const MB = 18; // bottom margin for x-axis labels
 const GAP = 5; // gap between top and bottom panels
 const TOP_FRAC = 0.75;
 
-// Source color palette: turbine first (green), then mcast sources
+// Source color palette: turbine first (green), then high-contrast mcast sources
 const SOURCE_COLORS = [
   successColor, // turbine → green
-  "#4D9DE0", // blue
-  "#E1BC29", // yellow
-  "#E15554", // red
-  "#7768AE", // purple
-  "#F18F01", // orange
-  "#1CE7C2", // teal
-  "#C3423F", // dark red
+  "#F97316", // orange
+  "#06B6D4", // cyan
+  "#EC4899", // pink
+  "#EAB308", // yellow
+  "#8B5CF6", // violet
+  "#EF4444", // red
+  "#84CC16", // lime
 ];
 const srcColor = (i: number) => SOURCE_COLORS[i % SOURCE_COLORS.length];
 
@@ -66,7 +66,9 @@ export default function ShredRaceHistoryCard() {
   useEffect(() => {
     if (!shredRace || shredRace.length === 0) return;
 
-    setSourceLabels(shredRace.map((e) => e.label));
+    const labels = shredRace.map((e) => e.label);
+    labels.sort((a, b) => (a === "turbine" ? -1 : b === "turbine" ? 1 : 0));
+    setSourceLabels(labels);
 
     const prev = prevRef.current;
     if (prev) {
@@ -133,31 +135,45 @@ export default function ShredRaceHistoryCard() {
     [buckets, sourceLabels],
   );
 
+  // ── active sources: only those with any first-arrival data in the window ──
+  const activeSourceIndices = useMemo(() => {
+    const active = new Set<number>();
+    for (let si = 0; si < sourceLabels.length; si++) {
+      const label = sourceLabels[si];
+      if (visible.some((b) => (b.sources[label] ?? 0) > 0)) active.add(si);
+    }
+    return active;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buckets, sourceLabels]);
+
   // ── step-polygon paths for each source ────────────────────────────────────
   const polygons = useMemo(() => {
     if (N === 0) return [];
     const xFn = (i: number) => ML + (MAX_BUCKETS - N + i) * barW;
 
-    return sourceLabels.map((_, si) => {
-      const pts: string[] = [];
-      // top edge left → right
-      for (let j = 0; j < N; j++) {
-        const x0 = xFn(j);
-        const yTop = topY + topH * (1 - (stacked[j]?.[si] ?? 0));
-        pts.push(`${x0.toFixed(1)},${yTop.toFixed(1)}`);
-        pts.push(`${(x0 + barW).toFixed(1)},${yTop.toFixed(1)}`);
-      }
-      // bottom edge right → left
-      for (let j = N - 1; j >= 0; j--) {
-        const x0 = xFn(j);
-        const bot = si > 0 ? (stacked[j]?.[si - 1] ?? 0) : 0;
-        const yBot = topY + topH * (1 - bot);
-        pts.push(`${(x0 + barW).toFixed(1)},${yBot.toFixed(1)}`);
-        pts.push(`${x0.toFixed(1)},${yBot.toFixed(1)}`);
-      }
-      return { pts: pts.join(" "), color: srcColor(si) };
-    });
-  }, [N, sourceLabels, stacked, barW, topY, topH]);
+    return sourceLabels
+      .map((_, si) => {
+        if (!activeSourceIndices.has(si)) return null;
+        const pts: string[] = [];
+        // top edge left → right
+        for (let j = 0; j < N; j++) {
+          const x0 = xFn(j);
+          const yTop = topY + topH * (1 - (stacked[j]?.[si] ?? 0));
+          pts.push(`${x0.toFixed(1)},${yTop.toFixed(1)}`);
+          pts.push(`${(x0 + barW).toFixed(1)},${yTop.toFixed(1)}`);
+        }
+        // bottom edge right → left
+        for (let j = N - 1; j >= 0; j--) {
+          const x0 = xFn(j);
+          const bot = si > 0 ? (stacked[j]?.[si - 1] ?? 0) : 0;
+          const yBot = topY + topH * (1 - bot);
+          pts.push(`${(x0 + barW).toFixed(1)},${yBot.toFixed(1)}`);
+          pts.push(`${x0.toFixed(1)},${yBot.toFixed(1)}`);
+        }
+        return { pts: pts.join(" "), color: srcColor(si) };
+      })
+      .filter((p): p is { pts: string; color: string } => p !== null);
+  }, [N, sourceLabels, activeSourceIndices, stacked, barW, topY, topH]);
 
   // ── volume / contested ─────────────────────────────────────────────────────
   const maxC = useMemo(
@@ -193,25 +209,28 @@ export default function ShredRaceHistoryCard() {
         <Flex justify="between" align="center" wrap="wrap" gap="2">
           <Text className={tableStyles.headerText}>Shred Race · 5m</Text>
           <Flex gap="3" wrap="wrap">
-            {sourceLabels.map((label, i) => (
-              <Flex key={label} align="center" gap="1">
-                <div
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: 2,
-                    backgroundColor: srcColor(i),
-                    flexShrink: 0,
-                  }}
-                />
-                <Text
-                  size="1"
-                  style={{ opacity: 0.75, fontFamily: "monospace" }}
-                >
-                  {label}
-                </Text>
-              </Flex>
-            ))}
+            {sourceLabels.map((label, i) => {
+              if (!activeSourceIndices.has(i)) return null;
+              return (
+                <Flex key={label} align="center" gap="1">
+                  <div
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: 2,
+                      backgroundColor: srcColor(i),
+                      flexShrink: 0,
+                    }}
+                  />
+                  <Text
+                    size="1"
+                    style={{ opacity: 0.75, fontFamily: "monospace" }}
+                  >
+                    {label}
+                  </Text>
+                </Flex>
+              );
+            })}
           </Flex>
         </Flex>
 
