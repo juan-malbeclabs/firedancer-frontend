@@ -1,7 +1,7 @@
 import { useAtomValue } from "jotai";
 import { liveNetworkMetricsAtom } from "../../../api/atoms";
 import Card from "../../../components/Card";
-import { Flex, SegmentedControl, Table, Text, Tooltip } from "@radix-ui/themes";
+import { Flex, Table, Text, Tooltip } from "@radix-ui/themes";
 import { InfoCircledIcon } from "@radix-ui/react-icons";
 import tableStyles from "../../Gossip/table.module.css";
 import { headerGap } from "../../Gossip/consts";
@@ -10,14 +10,13 @@ import {
   successColor,
   failureColor,
 } from "../../../colors";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { z } from "zod";
 import type { shredRaceEntrySchema } from "../../../api/entities";
 
 type ShredRaceEntry = z.infer<typeof shredRaceEntrySchema>;
 
-const WINDOW_OPTIONS = [5, 15, 30, 60] as const;
-type WindowMin = (typeof WINDOW_OPTIONS)[number];
+const WINDOW_MIN = 5; // fixed 5-minute moving window
 
 /** One snapshot in the ring buffer: per-source contested counts. */
 interface RaceSnapshot {
@@ -105,7 +104,6 @@ function RaceRow({ entry, window: win }: RaceRowProps) {
 
 export default function ShredRaceCard() {
   const liveNetworkMetrics = useAtomValue(liveNetworkMetricsAtom);
-  const [windowMin, setWindowMin] = useState<WindowMin>(5);
   const historyRef = useRef<RaceSnapshot[]>([]);
 
   const shredRace = liveNetworkMetrics?.shred_race;
@@ -130,8 +128,8 @@ export default function ShredRaceCard() {
   const entries = shredRace.filter((e) => e.total > 0 || e.label === "turbine");
   if (entries.length === 0) return null;
 
-  // Compute windowed deltas.
-  const cutoffMs = Date.now() - windowMin * 60 * 1000;
+  // Compute windowed deltas (fixed 5-minute moving window).
+  const cutoffMs = Date.now() - WINDOW_MIN * 60 * 1000;
   const history = historyRef.current;
   const current = history.at(-1);
 
@@ -157,24 +155,14 @@ export default function ShredRaceCard() {
   return (
     <Card style={{ flexGrow: 1 }}>
       <Flex direction="column" height="100%" gap={headerGap}>
-        <Flex align="center" justify="between" wrap="wrap" gap="2">
-          <Flex align="center" gap="1">
-            <Text className={tableStyles.headerText}>Shred Race</Text>
-            <Tooltip content="Counts of contested shreds (2+ sources) per placement in the selected window. Solo deliveries (only one source) are excluded.">
-              <InfoCircledIcon style={{ cursor: "help", opacity: 0.6 }} />
-            </Tooltip>
-          </Flex>
-          <SegmentedControl.Root
-            size="1"
-            value={String(windowMin)}
-            onValueChange={(v) => setWindowMin(Number(v) as WindowMin)}
-          >
-            {WINDOW_OPTIONS.map((m) => (
-              <SegmentedControl.Item key={m} value={String(m)}>
-                {m}m
-              </SegmentedControl.Item>
-            ))}
-          </SegmentedControl.Root>
+        <Flex align="center" gap="1">
+          <Text className={tableStyles.headerText}>Shred Race</Text>
+          <Tooltip content="Counts of contested shreds (2+ sources) per placement in the last 5 minutes. Solo deliveries (only one source) are excluded.">
+            <InfoCircledIcon style={{ cursor: "help", opacity: 0.6 }} />
+          </Tooltip>
+          <Text size="1" style={{ opacity: 0.5, marginLeft: 4 }}>
+            5m
+          </Text>
         </Flex>
         <Table.Root variant="ghost" className={tableStyles.root} size="1">
           <Table.Header>

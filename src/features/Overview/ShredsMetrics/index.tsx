@@ -21,7 +21,7 @@ const TURBINE_BYTES_IDX = 0; // turbine.unicast bytes
 const SHREDS_IDX = 6; // turbine shred count
 const MCAST_IDX = 7; // mcast shred count
 const MCAST_NEW_IDX = 8; // mcast shreds arriving before turbine
-const TURBINE_DUP_IDX = 9; // turbine shreds that were duplicates
+const TURBINE_DUP_IDX = 9; // turbine shreds that were duplicates (smcast dedup)
 
 function formatShredsPerSec(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M /s`;
@@ -140,6 +140,42 @@ function McastSrcRow({ label, shreds, bytes }: McastSrcRowProps) {
   );
 }
 
+function IngressTotalRow({ ingress }: { ingress: number[] }) {
+  const turbineShreds = ingress[SHREDS_IDX] ?? 0;
+  const mcastShreds = ingress[MCAST_IDX] ?? 0;
+  const total = turbineShreds + mcastShreds;
+  const emaTotal = useEmaValue(total, emaOptions);
+
+  return (
+    <Table.Row>
+      <Table.RowHeaderCell>
+        <Flex align="center" gap="1">
+          ingress
+          <Tooltip content="Total shreds/s received (turbine + mcast) before deduplication.">
+            <InfoCircledIcon style={{ cursor: "help", opacity: 0.6 }} />
+          </Tooltip>
+        </Flex>
+      </Table.RowHeaderCell>
+      <Table.Cell align="right">{formatShredsPerSec(emaTotal)}</Table.Cell>
+      <Table.Cell className={styles.chart}>
+        <Flex align="center">
+          <Bars value={emaTotal} max={maxShredsPerSec} barWidth={2} />
+        </Flex>
+      </Table.Cell>
+      <Table.Cell className={styles.chart}>
+        <TileSparkLine
+          value={Math.min(1, emaTotal / maxShredsPerSec)}
+          background={tileChartDarkBackground}
+          windowMs={60_000}
+          height={chartHeight}
+          updateIntervalMs={500}
+          tickMs={1_000}
+        />
+      </Table.Cell>
+    </Table.Row>
+  );
+}
+
 function DedupRow({ ingress }: { ingress: number[] }) {
   const turbineShreds = ingress[SHREDS_IDX] ?? 0;
   const mcastShreds = ingress[MCAST_IDX] ?? 0;
@@ -151,8 +187,8 @@ function DedupRow({ ingress }: { ingress: number[] }) {
     <Table.Row className={styles.totalRow}>
       <Table.RowHeaderCell>
         <Flex align="center" gap="1">
-          unique
-          <Tooltip content="Net shreds/s after deduplication: (turbine + mcast − turbine duplicates). Represents unique FEC set data entering the validator.">
+          post-dedup
+          <Tooltip content="Net shreds/s after deduplication: (turbine + mcast − duplicates). Unique FEC set data entering the validator.">
             <InfoCircledIcon style={{ cursor: "help", opacity: 0.6 }} />
           </Tooltip>
         </Flex>
@@ -249,6 +285,7 @@ export default function ShredsMetrics() {
                     ingress={liveNetworkMetrics.ingress}
                   />,
                 ]}
+            <IngressTotalRow ingress={liveNetworkMetrics.ingress} />
             <DedupRow ingress={liveNetworkMetrics.ingress} />
           </Table.Body>
         </Table.Root>
