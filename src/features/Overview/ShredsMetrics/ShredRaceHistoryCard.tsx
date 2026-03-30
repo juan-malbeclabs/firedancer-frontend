@@ -85,9 +85,29 @@ export default function ShredRaceHistoryCard() {
         totalContested += fd + sd + td;
       }
       setBuckets((prev) => {
+        // Throttle to ~1 bucket/s: if the last bucket is less than 900ms old,
+        // accumulate into it rather than creating a new entry.  This ensures
+        // MAX_BUCKETS always represents ~5 minutes regardless of how fast the
+        // server pushes shred_race updates.
+        const now = Date.now();
+        const last = prev[prev.length - 1];
+        if (last && now - last.ts < 900) {
+          const updated = {
+            ...last,
+            sources: Object.fromEntries(
+              Object.keys({ ...last.sources, ...sources }).map((k) => [
+                k,
+                (last.sources[k] ?? 0) + (sources[k] ?? 0),
+              ]),
+            ),
+            totalFirst: last.totalFirst + totalFirst,
+            totalContested: last.totalContested + totalContested,
+          };
+          return [...prev.slice(0, -1), updated];
+        }
         const next = [
           ...prev,
-          { ts: Date.now(), sources, totalFirst, totalContested },
+          { ts: now, sources, totalFirst, totalContested },
         ];
         return next.length > MAX_BUCKETS + 10
           ? next.slice(-(MAX_BUCKETS + 10))

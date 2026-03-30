@@ -219,7 +219,11 @@ function SankeyInner({
       }
     }
 
-    // Column 1: bad_slot first (epoch-unknown drop, turbine side), then cross-source dedup, then mcast receiver below
+    // Column 1: mcast receiver first (top) so its path to shredproc stays high.
+    // Drop nodes come after so d3-sankey positions them below mcast receiver —
+    // turbine in will then exit drop links from its lower portion, making them
+    // curve downward while the main turbine→shredproc band stays at the top.
+    nodes.push({ id: NODE_MCAST_RCVR, fixedLayer: 1 });
     if (showBadSlot) nodes.push({ id: NODE_BAD_SLOT, fixedLayer: 1 });
     if (shredprocDedup > 0)
       nodes.push({ id: NODE_TURBINE_DEDUP, fixedLayer: 1 });
@@ -231,7 +235,6 @@ function SankeyInner({
     } else if (mcastSrcDedupTotal > 0) {
       nodes.push({ id: NODE_DEDUP_DROP, fixedLayer: 1 });
     }
-    nodes.push({ id: NODE_MCAST_RCVR, fixedLayer: 1 });
 
     nodes.push({ id: NODE_SHREDPROC });
     nodes.push({ id: NODE_FORWARDED });
