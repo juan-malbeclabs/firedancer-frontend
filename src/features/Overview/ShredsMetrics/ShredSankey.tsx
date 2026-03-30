@@ -130,7 +130,12 @@ function useMcastSrcsEma(
 interface SankeyInnerProps {
   turbineShreds: number;
   /** Per-source mcast data when available (IP:Port → shreds/s + dedup/s) */
-  mcastSrcs: Array<{ label: string; shreds: number; dedup: number }> | null;
+  mcastSrcs: Array<{
+    label: string;
+    senderLabel: string;
+    shreds: number;
+    dedup: number;
+  }> | null;
   /** Aggregate fallback when no per-source data */
   mcastShreds: number;
   dedupSkipped: number;
@@ -207,7 +212,7 @@ function SankeyInner({
     if (hasSrcs) {
       for (const src of mcastSrcs) {
         if (src.dedup > 0)
-          nodes.push({ id: `${src.label} dedup`, fixedLayer: 1 });
+          nodes.push({ id: `${src.senderLabel} dedup`, fixedLayer: 1 });
       }
     } else if (mcastSrcDedupTotal > 0) {
       nodes.push({ id: NODE_DEDUP_DROP, fixedLayer: 1 });
@@ -255,7 +260,7 @@ function SankeyInner({
         if (src.dedup > 0) {
           links.push({
             source: src.label,
-            target: `${src.label} dedup`,
+            target: `${src.senderLabel} dedup`,
             value: src.dedup,
           });
         }
@@ -389,6 +394,7 @@ export default function ShredSankey() {
     if (!rawSrcs || rawSrcs.length === 0) return null;
     return rawSrcs.map((src) => ({
       label: src.grp_label ?? src.label,
+      senderLabel: src.label,
       shreds: Math.round(srcEmaMap.get(src.label)?.shreds ?? 0),
       dedup: Math.round(srcEmaMap.get(src.label)?.dedup ?? 0),
     }));
