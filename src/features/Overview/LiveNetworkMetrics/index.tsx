@@ -7,6 +7,7 @@ import { useEmaValue } from "../../../hooks/useEma";
 import {
   networkMaxByteValues,
   networkProtocols,
+  NETWORK_TOTAL_MAX_BYTES,
   type NetworkMetricsCardType,
 } from "./consts";
 import { formatBytesAsBits } from "../../../utils";
@@ -198,6 +199,7 @@ function NetworkMetricsCard({
               type={type}
               value={totalRaw}
               label="Total"
+              maxOverride={NETWORK_TOTAL_MAX_BYTES}
               className={styles.totalRow}
               sharedUnit={sharedUnit}
               sharedDivisor={sharedDivisor}

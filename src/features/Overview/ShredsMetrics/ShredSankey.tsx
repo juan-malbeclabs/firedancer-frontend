@@ -37,6 +37,7 @@ const NODE_TURBINE_FWD = "turbine fwd";
 const NODE_MCAST_FWD = "mcast fwd";
 const NODE_TXPROC = "DEX Transactions";
 const NODE_REPAIR = "repair";
+const NODE_LOCAL = "local replay";
 
 function formatShredsPerSec(v: number): string {
   if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M/s`;
@@ -189,25 +190,57 @@ function SankeyInner({
     const repairShredsScaled = Math.round(repairShreds * scale);
     const txprocShreds = Math.round(txprocShredsRaw * scale);
 
-    const nodes: { id: string }[] = [{ id: NODE_TURBINE_IN }];
-    // Each source that has dedup gets its own dedup drop node
-    if (shredprocDedup > 0) nodes.push({ id: NODE_TURBINE_DEDUP });
+    const nodes: { id: string; fixedLayer?: number; dropPctLabel?: string }[] =
+      [];
 
+    // Column 0: source nodes (pinned to first column)
+    {
+      const turbineDropPct =
+        shredprocDedup > 0
+          ? `${(Math.min(shredprocDedup / Math.max(1, t), 1) * 100).toFixed(1)}% drop`
+          : undefined;
+      nodes.push({
+        id: NODE_TURBINE_IN,
+        fixedLayer: 0,
+        dropPctLabel: turbineDropPct,
+      });
+    }
     if (hasSrcs) {
       for (const src of mcastSrcs) {
-        nodes.push({ id: src.label });
-        if (src.dedup > 0) nodes.push({ id: `${src.label} dedup` });
+        const total = src.shreds + src.dedup;
+        const dropPct =
+          src.dedup > 0
+            ? `${(Math.min(src.dedup / Math.max(1, total), 1) * 100).toFixed(1)}% drop`
+            : undefined;
+        nodes.push({ id: src.label, fixedLayer: 0, dropPctLabel: dropPct });
+      }
+    }
+
+    // Column 1: mcast receiver first (above dedup drops), then dedup drop nodes
+    nodes.push({ id: NODE_MCAST_RCVR });
+    if (shredprocDedup > 0)
+      nodes.push({ id: NODE_TURBINE_DEDUP, fixedLayer: 1 });
+    if (hasSrcs) {
+      for (const src of mcastSrcs) {
+        if (src.dedup > 0)
+          nodes.push({ id: `${src.label} dedup`, fixedLayer: 1 });
       }
     } else if (mcastSrcDedupTotal > 0) {
-      nodes.push({ id: NODE_DEDUP_DROP });
+      nodes.push({ id: NODE_DEDUP_DROP, fixedLayer: 1 });
     }
-    nodes.push({ id: NODE_MCAST_RCVR });
+
     nodes.push({ id: NODE_SHREDPROC });
     nodes.push({ id: NODE_FORWARDED });
     if (turbineFwdShreds > 0) nodes.push({ id: NODE_TURBINE_FWD });
     if (mcastFwdShreds > 0) nodes.push({ id: NODE_MCAST_FWD });
     if (repairShredsScaled > 0) nodes.push({ id: NODE_REPAIR });
     if (txprocShreds > 0) nodes.push({ id: NODE_TXPROC });
+
+    // Local replay: shreds that pass dedup but aren't attributed to any forwarded output
+    const outputSum =
+      turbineFwdShreds + mcastFwdShreds + repairShredsScaled + txprocShreds;
+    const localShreds = Math.max(0, forwarded - outputSum);
+    if (localShreds > 1) nodes.push({ id: NODE_LOCAL });
 
     // shredprocDedup = turbine-vs-mcast cross-source dups: turbine shreds dropped
     // because mcast already had them. Attributed to turbine in, not mcast receiver.
@@ -229,6 +262,7 @@ function SankeyInner({
 
     if (hasSrcs) {
       for (const src of mcastSrcs) {
+        // Main flow first (so it sorts above the dedup link in d3Sankey)
         links.push({
           source: src.label,
           target: NODE_MCAST_RCVR,
@@ -287,6 +321,13 @@ function SankeyInner({
         source: NODE_FORWARDED,
         target: NODE_TXPROC,
         value: txprocShreds,
+      });
+    }
+    if (localShreds > 1) {
+      links.push({
+        source: NODE_FORWARDED,
+        target: NODE_LOCAL,
+        value: localShreds,
       });
     }
 

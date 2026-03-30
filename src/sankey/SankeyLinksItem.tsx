@@ -19,6 +19,7 @@ import {
   sankeyDroppedLinkColor,
   sankeyIncomingLinkColor,
   sankeyRetainedLinkColor,
+  sankeyShredDedupLinkColor,
   nonVoteColor,
   votesColor,
 } from "../colors";
@@ -88,7 +89,14 @@ export const SankeyLinksItem = <N extends DefaultNode, L extends DefaultLink>({
   //   [onClick, link],
   // );
   let linkColor;
-  if (incomingSlotNodes.includes(link.source.id as SlotNode)) {
+  /* Shred Sankey: paths going to dedup-drop nodes use light red */
+  if (
+    link.target.id === "dedup drop" ||
+    link.target.id === "turbine dedup" ||
+    link.target.id.endsWith(" dedup")
+  ) {
+    linkColor = sankeyShredDedupLinkColor;
+  } else if (incomingSlotNodes.includes(link.source.id as SlotNode)) {
     linkColor = sankeyIncomingLinkColor;
   } else if (
     retainedSlotNodes.includes(link.source.id as SlotNode) ||

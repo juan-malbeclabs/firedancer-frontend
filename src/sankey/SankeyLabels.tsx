@@ -128,6 +128,7 @@ export const SankeyLabels = <N extends DefaultNode, L extends DefaultLink>({
       return {
         id: node.id,
         label: node.label,
+        dropPctLabel: node.dropPctLabel,
         value: node.value,
         x,
         y,
@@ -186,6 +187,11 @@ export const SankeyLabels = <N extends DefaultNode, L extends DefaultLink>({
                 {label.value?.toLocaleString()}
                 {getSuffix()}
               </tspan>
+              {label.dropPctLabel && (
+                <tspan x="0" dy="1em" style={{ fill: failureColor }}>
+                  {label.dropPctLabel}
+                </tspan>
+              )}
             </text>
           </ShowNode>
         );

@@ -16,6 +16,9 @@ export const networkProtocols = [
 type NetworkProtocol = (typeof networkProtocols)[number];
 export type NetworkMetricsTableRowLabel = "Total";
 
+// Shared max for the Total row in both Ingress and Egress tables (1 Gb/s link).
+export const NETWORK_TOTAL_MAX_BYTES = 1_000_000_000 / 8;
+
 // For "shreds"/"mcast"/"mcast_new"/"turbine_dup", the max is a count (shreds/s), not bytes.
 export const networkMaxByteValues: {
   [key in NetworkMetricsCardType]: {

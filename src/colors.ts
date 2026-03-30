@@ -169,6 +169,8 @@ export const sankeyStartEndNodeColor = "#525463";
 export const sankeyIncomingLinkColor = "#23639E";
 export const sankeyDroppedLinkColor = "#5C5555";
 export const sankeyRetainedLinkColor = "#452909";
+export const sankeyShredDedupLinkColor =
+  "#FF8080"; /* light red for dedup-drop paths */
 
 export const sankeyBaseLabelColor = "#C6C6C6";
 export const sankeyLinkGradientEndColor = "#183A5A";
