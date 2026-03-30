@@ -81,7 +81,7 @@ export default function TxlogCard({
   const header = (
     <Flex direction="column" gap="1">
       <Flex justify="between" align="center" gap="1">
-        <Text className={styles.header}>Tx Processor</Text>
+        <Text className={styles.header}>DEX Processor</Text>
         <StatPill label="Received" metricType="dexf_received" />
       </Flex>
       <Flex gap="1" wrap="wrap">
