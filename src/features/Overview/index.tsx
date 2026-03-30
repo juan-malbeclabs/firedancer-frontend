@@ -9,6 +9,7 @@ import LiveNetworkMetrics from "./LiveNetworkMetrics";
 import ShredsMetrics from "./ShredsMetrics";
 import ShredSankey from "./ShredsMetrics/ShredSankey";
 import ShredRaceCard from "./ShredsMetrics/ShredRaceCard";
+import ShredRaceHistoryCard from "./ShredsMetrics/ShredRaceHistoryCard";
 import TxlogCard from "./SlotPerformance/TxlogCard";
 import LiveTileMetrics from "./LiveTileMetrics";
 import SlotTimeline from "./SlotTimeline";
@@ -44,6 +45,7 @@ export default function Overview() {
       {!isRelayMode && <SlotPerformance />}
       <LiveNetworkMetrics />
       <ShredSankey />
+      <ShredRaceHistoryCard />
       <Flex wrap="wrap" gap="4">
         <Flex style={{ flexBasis: "calc(50% - 8px)", flexGrow: 1 }}>
           <ShredsMetrics />
