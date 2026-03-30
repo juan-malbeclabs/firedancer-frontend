@@ -135,6 +135,26 @@ export default function ShredRaceHistoryCard() {
     [buckets, sourceLabels],
   );
 
+  // ── per-source % of first arrivals averaged over the visible window ─────────
+  const sourcePcts = useMemo(() => {
+    const totals: Record<string, number> = {};
+    let grandTotal = 0;
+    for (const b of visible) {
+      for (const label of sourceLabels) {
+        const v = b.sources[label] ?? 0;
+        totals[label] = (totals[label] ?? 0) + v;
+        grandTotal += v;
+      }
+    }
+    const pcts: Record<string, number> = {};
+    for (const label of sourceLabels) {
+      pcts[label] =
+        grandTotal > 0 ? ((totals[label] ?? 0) / grandTotal) * 100 : 0;
+    }
+    return pcts;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buckets, sourceLabels]);
+
   // ── active sources: only those with any first-arrival data in the window ──
   const activeSourceIndices = useMemo(() => {
     const active = new Set<number>();
@@ -227,6 +247,12 @@ export default function ShredRaceHistoryCard() {
                     style={{ opacity: 0.75, fontFamily: "monospace" }}
                   >
                     {label}
+                  </Text>
+                  <Text
+                    size="1"
+                    style={{ opacity: 0.5, fontFamily: "monospace" }}
+                  >
+                    {sourcePcts[label]?.toFixed(1)}%
                   </Text>
                 </Flex>
               );
