@@ -19,24 +19,19 @@ type ShredRaceEntry = z.infer<typeof shredRaceEntrySchema>;
 const WINDOW_OPTIONS = [5, 15, 30, 60] as const;
 type WindowMin = (typeof WINDOW_OPTIONS)[number];
 
-/** One snapshot in the ring buffer. */
+/** One snapshot in the ring buffer: per-source contested counts. */
 interface RaceSnapshot {
   ts: number; // Date.now() ms
-  /** per-source cumulative total = first + second + third + solo */
-  totals: number[];
+  /** per-source [first, second, third] — solo excluded */
+  counts: [number, number, number][];
 }
 
-const MAX_HISTORY = 3700; // ~1h at 1 update/s with headroom
+const MAX_HISTORY = 3700; // ~1h at 1 update/s
 
 function formatCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
   return `${n}`;
-}
-
-function formatPct(n: number, total: number): string {
-  if (total === 0) return "—";
-  return `${((n / total) * 100).toFixed(1)}%`;
 }
 
 function formatDelay(us: number): string {
@@ -45,16 +40,22 @@ function formatDelay(us: number): string {
   return `${us.toFixed(0)} µs`;
 }
 
-interface RaceRowProps {
-  entry: ShredRaceEntry;
-  windowCount: number;
+interface WindowCounts {
+  first: number;
+  second: number;
+  third: number;
 }
 
-function RaceRow({ entry, windowCount }: RaceRowProps) {
-  const total = entry.total + entry.solo;
-  const firstPct = total > 0 ? (entry.first + entry.solo) / total : 0;
-  const pctColor =
-    firstPct >= 0.5 ? successColor : firstPct > 0 ? "#E5A50A" : failureColor;
+interface RaceRowProps {
+  entry: ShredRaceEntry;
+  window: WindowCounts;
+}
+
+function RaceRow({ entry, window: win }: RaceRowProps) {
+  const total = win.first + win.second + win.third;
+  const winRate = total > 0 ? win.first / total : 0;
+  const firstColor =
+    winRate >= 0.5 ? successColor : winRate > 0 ? "#E5A50A" : failureColor;
 
   return (
     <Table.Row>
@@ -68,23 +69,11 @@ function RaceRow({ entry, windowCount }: RaceRowProps) {
       >
         {entry.label}
       </Table.RowHeaderCell>
-      <Table.Cell align="right" style={{ fontVariantNumeric: "tabular-nums" }}>
-        {formatCount(windowCount)}
-      </Table.Cell>
       <Table.Cell
         align="right"
-        style={{ color: pctColor, fontVariantNumeric: "tabular-nums" }}
+        style={{ color: firstColor, fontVariantNumeric: "tabular-nums" }}
       >
-        {formatPct(entry.first + entry.solo, total)}
-      </Table.Cell>
-      <Table.Cell
-        align="right"
-        style={{
-          color: secondaryTextColor,
-          fontVariantNumeric: "tabular-nums",
-        }}
-      >
-        {formatPct(entry.second, total)}
+        {formatCount(win.first)}
       </Table.Cell>
       <Table.Cell
         align="right"
@@ -93,7 +82,16 @@ function RaceRow({ entry, windowCount }: RaceRowProps) {
           fontVariantNumeric: "tabular-nums",
         }}
       >
-        {formatPct(entry.third, total)}
+        {formatCount(win.second)}
+      </Table.Cell>
+      <Table.Cell
+        align="right"
+        style={{
+          color: secondaryTextColor,
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {formatCount(win.third)}
       </Table.Cell>
       <Table.Cell align="right" style={{ fontVariantNumeric: "tabular-nums" }}>
         {formatDelay(entry.delay_p95_us)}
@@ -112,11 +110,15 @@ export default function ShredRaceCard() {
 
   const shredRace = liveNetworkMetrics?.shred_race;
 
-  // Append a snapshot every time shred_race data changes.
+  // Append a snapshot on every data update.
   useEffect(() => {
     if (!shredRace) return;
-    const totals = shredRace.map((e) => e.first + e.second + e.third + e.solo);
-    historyRef.current.push({ ts: Date.now(), totals });
+    const counts = shredRace.map((e): [number, number, number] => [
+      e.first,
+      e.second,
+      e.third,
+    ]);
+    historyRef.current.push({ ts: Date.now(), counts });
     if (historyRef.current.length > MAX_HISTORY) {
       historyRef.current.splice(0, historyRef.current.length - MAX_HISTORY);
     }
@@ -124,9 +126,8 @@ export default function ShredRaceCard() {
 
   if (!shredRace) return null;
 
-  const entries = shredRace.filter(
-    (e) => e.total > 0 || e.solo > 0 || e.label === "turbine",
-  );
+  // Only show sources that participated in a contested race or are turbine.
+  const entries = shredRace.filter((e) => e.total > 0 || e.label === "turbine");
   if (entries.length === 0) return null;
 
   // Compute windowed deltas.
@@ -134,7 +135,6 @@ export default function ShredRaceCard() {
   const history = historyRef.current;
   const current = history.at(-1);
 
-  // Find the last snapshot that is at or before the cutoff.
   let baseIdx = 0;
   for (let i = 1; i < history.length; i++) {
     if (history[i].ts > cutoffMs) break;
@@ -142,13 +142,16 @@ export default function ShredRaceCard() {
   }
   const base = history[baseIdx];
 
-  const windowCounts = entries.map((e, i) => {
+  const windowCounts: WindowCounts[] = entries.map((e) => {
     const srcIdx = shredRace.indexOf(e);
-    if (!current || !base) return 0;
-    return Math.max(
-      0,
-      (current.totals[srcIdx] ?? 0) - (base.totals[srcIdx] ?? 0),
-    );
+    if (!current || !base) return { first: 0, second: 0, third: 0 };
+    const [cf0, cs0, ct0] = current.counts[srcIdx] ?? [0, 0, 0];
+    const [bf0, bs0, bt0] = base.counts[srcIdx] ?? [0, 0, 0];
+    return {
+      first: Math.max(0, cf0 - bf0),
+      second: Math.max(0, cs0 - bs0),
+      third: Math.max(0, ct0 - bt0),
+    };
   });
 
   return (
@@ -157,7 +160,7 @@ export default function ShredRaceCard() {
         <Flex align="center" justify="between" wrap="wrap" gap="2">
           <Flex align="center" gap="1">
             <Text className={tableStyles.headerText}>Shred Race</Text>
-            <Tooltip content="Which source delivers each shred first? Percentages are cumulative. Count = shreds observed from that source in the selected window.">
+            <Tooltip content="Counts of contested shreds (2+ sources) per placement in the selected window. Solo deliveries (only one source) are excluded.">
               <InfoCircledIcon style={{ cursor: "help", opacity: 0.6 }} />
             </Tooltip>
           </Flex>
@@ -180,25 +183,12 @@ export default function ShredRaceCard() {
                 Source
               </Table.ColumnHeaderCell>
               <Table.ColumnHeaderCell align="right" width="65px">
-                <Tooltip content="Total shreds received from this source in the selected time window">
-                  <Flex
-                    align="center"
-                    gap="1"
-                    justify="end"
-                    style={{ cursor: "help" }}
-                  >
-                    Count
-                    <InfoCircledIcon style={{ opacity: 0.5 }} />
-                  </Flex>
-                </Tooltip>
-              </Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell align="right" width="55px">
                 1st
               </Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell align="right" width="55px">
+              <Table.ColumnHeaderCell align="right" width="65px">
                 2nd
               </Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell align="right" width="55px">
+              <Table.ColumnHeaderCell align="right" width="65px">
                 3rd+
               </Table.ColumnHeaderCell>
               <Table.ColumnHeaderCell align="right" width="65px">
@@ -234,7 +224,7 @@ export default function ShredRaceCard() {
               <RaceRow
                 key={entry.label}
                 entry={entry}
-                windowCount={windowCounts[i] ?? 0}
+                window={windowCounts[i] ?? { first: 0, second: 0, third: 0 }}
               />
             ))}
           </Table.Body>
