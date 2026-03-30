@@ -84,7 +84,7 @@ export default function ShredRaceCard() {
   if (!liveNetworkMetrics?.shred_race) return null;
 
   const entries = liveNetworkMetrics.shred_race.filter(
-    (e) => e.total > 0 || e.solo > 0,
+    (e) => e.total > 0 || e.solo > 0 || e.label === "turbine",
   );
   if (entries.length === 0) return null;
 
