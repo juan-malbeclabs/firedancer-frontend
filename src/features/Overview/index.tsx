@@ -8,6 +8,7 @@ import ShredsProgression from "./ShredsProgression";
 import LiveNetworkMetrics from "./LiveNetworkMetrics";
 import ShredsMetrics from "./ShredsMetrics";
 import ShredSankey from "./ShredsMetrics/ShredSankey";
+import ShredRaceCard from "./ShredsMetrics/ShredRaceCard";
 import TxlogCard from "./SlotPerformance/TxlogCard";
 import LiveTileMetrics from "./LiveTileMetrics";
 import SlotTimeline from "./SlotTimeline";
@@ -46,6 +47,9 @@ export default function Overview() {
       <Flex wrap="wrap" gap="4">
         <Flex style={{ flexBasis: "calc(50% - 8px)", flexGrow: 1 }}>
           <ShredsMetrics />
+        </Flex>
+        <Flex style={{ flexBasis: "calc(50% - 8px)", flexGrow: 1 }}>
+          <ShredRaceCard />
         </Flex>
         {hasTxlog && (
           <Flex style={{ flexBasis: "calc(50% - 8px)", flexGrow: 1 }}>
