@@ -22,7 +22,6 @@ export interface SankeyRawNode {
 export interface DefaultNode {
   id: string;
   fixedLayer?: number;
-  dropPctLabel?: string;
 }
 
 export interface DefaultLink {

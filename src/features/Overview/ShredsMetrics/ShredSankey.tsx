@@ -190,29 +190,13 @@ function SankeyInner({
     const repairShredsScaled = Math.round(repairShreds * scale);
     const txprocShreds = Math.round(txprocShredsRaw * scale);
 
-    const nodes: { id: string; fixedLayer?: number; dropPctLabel?: string }[] =
-      [];
+    const nodes: { id: string; fixedLayer?: number }[] = [];
 
     // Column 0: source nodes (pinned to first column)
-    {
-      const turbineDropPct =
-        shredprocDedup > 0
-          ? `${(Math.min(shredprocDedup / Math.max(1, t), 1) * 100).toFixed(1)}% drop`
-          : undefined;
-      nodes.push({
-        id: NODE_TURBINE_IN,
-        fixedLayer: 0,
-        dropPctLabel: turbineDropPct,
-      });
-    }
+    nodes.push({ id: NODE_TURBINE_IN, fixedLayer: 0 });
     if (hasSrcs) {
       for (const src of mcastSrcs) {
-        const total = src.shreds + src.dedup;
-        const dropPct =
-          src.dedup > 0
-            ? `${(Math.min(src.dedup / Math.max(1, total), 1) * 100).toFixed(1)}% drop`
-            : undefined;
-        nodes.push({ id: src.label, fixedLayer: 0, dropPctLabel: dropPct });
+        nodes.push({ id: src.label, fixedLayer: 0 });
       }
     }
 
