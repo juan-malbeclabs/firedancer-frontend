@@ -162,7 +162,7 @@ function NetworkMetricsCard({
                     key={src.label}
                     type={type}
                     value={src.bytes}
-                    label={src.label}
+                    label={src.grp_label ?? src.label}
                     maxOverride={NETWORK_LINK_MAX_BYTES}
                   />
                 ));

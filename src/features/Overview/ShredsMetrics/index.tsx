@@ -304,7 +304,7 @@ export default function ShredsMetrics() {
                   ...displayedSrcs.map((src) => (
                     <McastSrcRow
                       key={src.label}
-                      label={src.label}
+                      label={src.grp_label ?? src.label}
                       shreds={src.shreds}
                       bytes={src.bytes}
                       dedup={src.dedup}
