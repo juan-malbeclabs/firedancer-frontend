@@ -27,7 +27,9 @@ const AVG_SHREDS_PER_FEC_SET = 32;
 
 // Node name constants
 const NODE_TURBINE_IN = "turbine in";
-const NODE_MCAST_RCVR = "mcast receiver"; /* aggregates all multicast sources */
+const NODE_UNICAST =
+  "unicast"; /* aggregates turbine unicast shreds before FEC resolver */
+const NODE_MCAST_RCVR = "multicast"; /* aggregates all multicast sources */
 const NODE_SHREDPROC =
   "shredproc"; /* smcast tile — deduplicates turbine + mcast */
 const NODE_TURBINE_DEDUP =
@@ -219,10 +221,11 @@ function SankeyInner({
       }
     }
 
-    // Column 1: mcast receiver first (top) so its path to shredproc stays high.
-    // Drop nodes come after so d3-sankey positions them below mcast receiver —
-    // turbine in will then exit drop links from its lower portion, making them
-    // curve downward while the main turbine→shredproc band stays at the top.
+    // Column 1 ordered top → bottom:
+    //   unicast   — receives from turbine in, feeds shredproc (stays at top)
+    //   multicast — receives from mcast srcs, feeds shredproc (below unicast)
+    //   drops     — bad slot, turbine dedup, per-src dedup (bottom, curve down)
+    nodes.push({ id: NODE_UNICAST, fixedLayer: 1 });
     nodes.push({ id: NODE_MCAST_RCVR, fixedLayer: 1 });
     if (showBadSlot) nodes.push({ id: NODE_BAD_SLOT, fixedLayer: 1 });
     if (shredprocDedup > 0)
@@ -254,22 +257,29 @@ function SankeyInner({
     // bad_slot shreds are also dropped before reaching shredproc.
     const turbineToShredproc = Math.max(1, t - shredprocDedup - badSlotClipped);
     const links: { source: string; target: string; value: number }[] = [
+      // turbine in → unicast (all turbine shreds enter the unicast lane)
       {
         source: NODE_TURBINE_IN,
+        target: NODE_UNICAST,
+        value: t,
+      },
+      // unicast → shredproc (after dropping bad_slot and cross-source dups)
+      {
+        source: NODE_UNICAST,
         target: NODE_SHREDPROC,
         value: turbineToShredproc,
       },
     ];
     if (showBadSlot) {
       links.push({
-        source: NODE_TURBINE_IN,
+        source: NODE_UNICAST,
         target: NODE_BAD_SLOT,
         value: badSlotClipped,
       });
     }
     if (shredprocDedup > 0) {
       links.push({
-        source: NODE_TURBINE_IN,
+        source: NODE_UNICAST,
         target: NODE_TURBINE_DEDUP,
         value: Math.min(shredprocDedup, t - 1),
       });
