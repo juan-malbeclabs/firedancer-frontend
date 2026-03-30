@@ -1,4 +1,4 @@
-import { Flex } from "@radix-ui/themes";
+import { Flex, Badge } from "@radix-ui/themes";
 import TransactionsCard from "./TransactionsCard";
 import SlotPerformance from "./SlotPerformance";
 import ValidatorsCard from "./ValidatorsCard";
@@ -21,6 +21,35 @@ import {
 } from "./SlotPerformance/atoms";
 import { layoutModeAtom } from "../../api/atoms";
 
+function ShredsRow({
+  hasTxlog,
+  tileCounts,
+  groupedLiveIdlePerTile,
+}: {
+  hasTxlog: boolean;
+  tileCounts: Record<string, number>;
+  groupedLiveIdlePerTile: Record<string, number[]> | undefined;
+}) {
+  return (
+    <Flex wrap="wrap" gap="4">
+      <Flex style={{ flexBasis: "calc(50% - 8px)", flexGrow: 1 }}>
+        <ShredsMetrics />
+      </Flex>
+      <Flex style={{ flexBasis: "calc(50% - 8px)", flexGrow: 1 }}>
+        <ShredRaceCard />
+      </Flex>
+      {hasTxlog && (
+        <Flex style={{ flexBasis: "calc(50% - 8px)", flexGrow: 1 }}>
+          <TxlogCard
+            tileCount={tileCounts["dexf"]}
+            liveIdlePerTile={groupedLiveIdlePerTile?.["dexf"]}
+          />
+        </Flex>
+      )}
+    </Flex>
+  );
+}
+
 export default function Overview() {
   const tiles = useAtomValue(tilesAtom);
   const tileCounts = useAtomValue(tileCountAtom);
@@ -30,38 +59,46 @@ export default function Overview() {
   const hasTxlog =
     !!tiles?.some((t) => t.kind === "dexf") && tileCounts["dexf"] > 0;
 
+  if (isRelayMode) {
+    return (
+      <Flex direction="column" gap="4" flexGrow="1">
+        <Flex>
+          <Badge color="orange" variant="soft" radius="full">
+            Shred Relay Mode
+          </Badge>
+        </Flex>
+        <ShredsRow
+          hasTxlog={hasTxlog}
+          tileCounts={tileCounts}
+          groupedLiveIdlePerTile={groupedLiveIdlePerTile}
+        />
+        <LiveTileMetrics />
+        <ShredRaceHistoryCard />
+        <ShredSankey />
+        <LiveNetworkMetrics />
+      </Flex>
+    );
+  }
+
   return (
     <Flex direction="column" gap="4" flexGrow="1">
-      {!isRelayMode && <SlotTimeline />}
-      {!isRelayMode && (
-        <Flex gap="16px" align="stretch" wrap="wrap">
-          <EpochCard />
-          <SlotStatusCard />
-          <ValidatorsCard />
-          <TransactionsCard />
-        </Flex>
-      )}
-      {!isRelayMode && <ShredsProgression />}
-      {!isRelayMode && <SlotPerformance />}
+      <SlotTimeline />
+      <Flex gap="16px" align="stretch" wrap="wrap">
+        <EpochCard />
+        <SlotStatusCard />
+        <ValidatorsCard />
+        <TransactionsCard />
+      </Flex>
+      <ShredsProgression />
+      <SlotPerformance />
       <LiveNetworkMetrics />
       <ShredSankey />
       <ShredRaceHistoryCard />
-      <Flex wrap="wrap" gap="4">
-        <Flex style={{ flexBasis: "calc(50% - 8px)", flexGrow: 1 }}>
-          <ShredsMetrics />
-        </Flex>
-        <Flex style={{ flexBasis: "calc(50% - 8px)", flexGrow: 1 }}>
-          <ShredRaceCard />
-        </Flex>
-        {hasTxlog && (
-          <Flex style={{ flexBasis: "calc(50% - 8px)", flexGrow: 1 }}>
-            <TxlogCard
-              tileCount={tileCounts["dexf"]}
-              liveIdlePerTile={groupedLiveIdlePerTile?.["dexf"]}
-            />
-          </Flex>
-        )}
-      </Flex>
+      <ShredsRow
+        hasTxlog={hasTxlog}
+        tileCounts={tileCounts}
+        groupedLiveIdlePerTile={groupedLiveIdlePerTile}
+      />
       <LiveTileMetrics />
     </Flex>
   );

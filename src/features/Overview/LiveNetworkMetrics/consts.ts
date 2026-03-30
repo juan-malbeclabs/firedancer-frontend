@@ -1,7 +1,7 @@
 export type NetworkMetricsCardType = "Ingress" | "Egress";
 
 export const networkProtocols = [
-  "turbine.unicast",
+  "turbine in",
   "turbine.multicast",
   "gossip",
   "tpu",
@@ -28,7 +28,7 @@ export const networkMaxByteValues: {
   };
 } = {
   Ingress: {
-    "turbine.unicast": 64_000_000 / 8,
+    "turbine in": 64_000_000 / 8,
     "turbine.multicast": 64_000_000 / 8,
     gossip: 20_000_000 / 8,
     tpu: 100_000_000 / 8,
@@ -49,7 +49,7 @@ export const networkMaxByteValues: {
       8,
   },
   Egress: {
-    "turbine.unicast": 1_000_000_000 / 8,
+    "turbine in": 1_000_000_000 / 8,
     "turbine.multicast": 1_000_000_000 / 8,
     gossip: 20_000_000 / 8,
     tpu: 1_000_000 / 8,

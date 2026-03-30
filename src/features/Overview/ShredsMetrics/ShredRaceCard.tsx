@@ -188,7 +188,7 @@ export default function ShredRaceCard() {
                     justify="end"
                     style={{ cursor: "help" }}
                   >
-                    %1st
+                    Win %
                     <InfoCircledIcon style={{ opacity: 0.5 }} />
                   </Flex>
                 </Tooltip>

@@ -144,7 +144,7 @@ function NetworkMetricsCard({
                     key="mcast-out"
                     type={type}
                     value={value}
-                    label="mcast out"
+                    label="relay out"
                     maxOverride={dynMax}
                   />
                 );

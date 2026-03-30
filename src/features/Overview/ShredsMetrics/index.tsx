@@ -1,4 +1,5 @@
 import { useAtomValue } from "jotai";
+import { useState } from "react";
 import { liveNetworkMetricsAtom } from "../../../api/atoms";
 import Card from "../../../components/Card";
 import { Flex, Table, Text, Tooltip } from "@radix-ui/themes";
@@ -243,22 +244,30 @@ function DedupRow({ ingress }: { ingress: number[] }) {
 
 export default function ShredsMetrics() {
   const liveNetworkMetrics = useAtomValue(liveNetworkMetricsAtom);
+  const [showAll, setShowAll] = useState(false);
   if (!liveNetworkMetrics) return null;
 
   const mcastSrcs = liveNetworkMetrics.mcast_srcs;
   const hasMcastSrcs = mcastSrcs && mcastSrcs.length > 0;
   const displayedSrcs = hasMcastSrcs
-    ? mcastSrcs.slice(0, MAX_MCAST_DISPLAY)
+    ? showAll
+      ? mcastSrcs
+      : mcastSrcs.slice(0, MAX_MCAST_DISPLAY)
     : undefined;
   const hiddenCount =
-    hasMcastSrcs && mcastSrcs.length > MAX_MCAST_DISPLAY
+    !showAll && hasMcastSrcs && mcastSrcs.length > MAX_MCAST_DISPLAY
       ? mcastSrcs.length - MAX_MCAST_DISPLAY
       : 0;
 
   return (
     <Card style={{ flexGrow: 1 }}>
       <Flex direction="column" height="100%" gap={headerGap}>
-        <Text className={tableStyles.headerText}>Shreds</Text>
+        <Flex align="center" gap="2">
+          <Text className={tableStyles.headerText}>Shreds</Text>
+          <Text size="1" style={{ opacity: 0.5 }}>
+            1m
+          </Text>
+        </Flex>
         <Table.Root
           variant="ghost"
           className={tableStyles.root}
@@ -316,7 +325,13 @@ export default function ShredsMetrics() {
                       <Table.Cell colSpan={4}>
                         <Text
                           size="1"
-                          style={{ opacity: 0.45, fontStyle: "italic" }}
+                          style={{
+                            opacity: 0.55,
+                            fontStyle: "italic",
+                            cursor: "pointer",
+                            textDecoration: "underline",
+                          }}
+                          onClick={() => setShowAll(true)}
                         >
                           and {hiddenCount} more source
                           {hiddenCount > 1 ? "s" : ""}…
@@ -324,6 +339,10 @@ export default function ShredsMetrics() {
                       </Table.Cell>
                     </Table.Row>
                   ),
+                  <McastLeadRow
+                    key="mcast-lead"
+                    ingress={liveNetworkMetrics.ingress}
+                  />,
                 ]
               : [
                   <McastSrcRow

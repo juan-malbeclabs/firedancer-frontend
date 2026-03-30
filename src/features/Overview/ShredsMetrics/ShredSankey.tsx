@@ -418,7 +418,7 @@ export default function ShredSankey() {
             </Text>
             {mcastFwdBytes > 0 && (
               <Text size="1" style={{ opacity: 0.6 }}>
-                mcast out: {formatMbps(mcastFwdBytes)}
+                relay out: {formatMbps(mcastFwdBytes)}
               </Text>
             )}
             {turbineFwdBytes > 0 && (
