@@ -29,7 +29,9 @@ const NODE_TURBINE_IN = "turbine in";
 const NODE_MCAST_RCVR = "mcast receiver"; /* aggregates all multicast sources */
 const NODE_SHREDPROC =
   "shredproc"; /* smcast tile — deduplicates turbine + mcast */
-const NODE_DEDUP_DROP = "dedup drop";
+const NODE_TURBINE_DEDUP =
+  "turbine dedup"; /* turbine-vs-mcast cross-source dups */
+const NODE_DEDUP_DROP = "dedup drop"; /* fallback when no per-source data */
 const NODE_FORWARDED = "forwarded";
 const NODE_TURBINE_FWD = "turbine fwd";
 const NODE_MCAST_FWD = "mcast fwd";
@@ -169,7 +171,6 @@ function SankeyInner({
       : 0;
     // Remaining dedup = after_frag turbine-vs-mcast dups
     const shredprocDedup = Math.max(0, dedupSkipped - mcastSrcDedupTotal);
-    const totalDedup = mcastSrcDedupTotal + shredprocDedup;
     // Per-source dups bypass shredproc, so forwarded excludes only after_frag dups
     const forwarded = Math.max(1, totalIn - shredprocDedup);
 
@@ -189,24 +190,42 @@ function SankeyInner({
     const txprocShreds = Math.round(txprocShredsRaw * scale);
 
     const nodes: { id: string }[] = [{ id: NODE_TURBINE_IN }];
+    // Each source that has dedup gets its own dedup drop node
+    if (shredprocDedup > 0) nodes.push({ id: NODE_TURBINE_DEDUP });
 
     if (hasSrcs) {
       for (const src of mcastSrcs) {
         nodes.push({ id: src.label });
+        if (src.dedup > 0) nodes.push({ id: `${src.label} dedup` });
       }
+    } else if (mcastSrcDedupTotal > 0) {
+      nodes.push({ id: NODE_DEDUP_DROP });
     }
     nodes.push({ id: NODE_MCAST_RCVR });
     nodes.push({ id: NODE_SHREDPROC });
-    if (totalDedup > 0) nodes.push({ id: NODE_DEDUP_DROP });
     nodes.push({ id: NODE_FORWARDED });
     if (turbineFwdShreds > 0) nodes.push({ id: NODE_TURBINE_FWD });
     if (mcastFwdShreds > 0) nodes.push({ id: NODE_MCAST_FWD });
     if (repairShredsScaled > 0) nodes.push({ id: NODE_REPAIR });
     if (txprocShreds > 0) nodes.push({ id: NODE_TXPROC });
 
+    // shredprocDedup = turbine-vs-mcast cross-source dups: turbine shreds dropped
+    // because mcast already had them. Attributed to turbine in, not mcast receiver.
+    const turbineToShredproc = Math.max(1, t - shredprocDedup);
     const links: { source: string; target: string; value: number }[] = [
-      { source: NODE_TURBINE_IN, target: NODE_SHREDPROC, value: t },
+      {
+        source: NODE_TURBINE_IN,
+        target: NODE_SHREDPROC,
+        value: turbineToShredproc,
+      },
     ];
+    if (shredprocDedup > 0) {
+      links.push({
+        source: NODE_TURBINE_IN,
+        target: NODE_TURBINE_DEDUP,
+        value: Math.min(shredprocDedup, t - 1),
+      });
+    }
 
     if (hasSrcs) {
       for (const src of mcastSrcs) {
@@ -218,27 +237,24 @@ function SankeyInner({
         if (src.dedup > 0) {
           links.push({
             source: src.label,
-            target: NODE_DEDUP_DROP,
+            target: `${src.label} dedup`,
             value: src.dedup,
           });
         }
       }
-    }
-    // Route dedup from mcast receiver directly to dedup drop (shows source of discards)
-    const mcastToShredproc = Math.max(1, m - shredprocDedup);
-    links.push({
-      source: NODE_MCAST_RCVR,
-      target: NODE_SHREDPROC,
-      value: mcastToShredproc,
-    });
-
-    if (shredprocDedup > 0) {
+    } else if (mcastSrcDedupTotal > 0) {
       links.push({
         source: NODE_MCAST_RCVR,
         target: NODE_DEDUP_DROP,
-        value: shredprocDedup,
+        value: mcastSrcDedupTotal,
       });
     }
+    // mcast receiver → shredproc: full m (cross-source dedup is already on turbine side)
+    links.push({
+      source: NODE_MCAST_RCVR,
+      target: NODE_SHREDPROC,
+      value: m,
+    });
     links.push({
       source: NODE_SHREDPROC,
       target: NODE_FORWARDED,
