@@ -15,6 +15,7 @@ const TURBINE_BYTES_IDX = 0;
 const SHREDS_IDX = 6; /* turbine shred count */
 const MCAST_IDX = 7; /* mcast shred count */
 const DEDUP_SKIPPED_IDX = 10; /* shreds dropped by smcast as duplicates */
+const BAD_SLOT_IDX = 11; /* shred_processed[0]: slot not in leader schedule */
 const OKAY_IDX = 15; /* shreds passing FEC resolver as new (okay) */
 const COMPLETES_IDX = 16; /* shreds completing a FEC set */
 const TXPROC_FEC_SETS_IDX = 17; /* FEC sets forwarded to txproc tile */
@@ -32,6 +33,8 @@ const NODE_SHREDPROC =
 const NODE_TURBINE_DEDUP =
   "turbine dedup"; /* turbine-vs-mcast cross-source dups */
 const NODE_DEDUP_DROP = "dedup drop"; /* fallback when no per-source data */
+const NODE_BAD_SLOT =
+  "bad slot"; /* shreds rejected: slot not in leader schedule */
 const NODE_FORWARDED = "forwarded";
 const NODE_TURBINE_FWD = "turbine fwd";
 const NODE_MCAST_FWD = "mcast fwd";
@@ -141,6 +144,10 @@ interface SankeyInnerProps {
   dedupSkipped: number;
   turbineFwdBytes: number;
   mcastFwdBytes: number;
+  /** shreds/s rejected because slot is not in the leader schedule.
+   *  Only shown when FEC resolver is working (repairShreds > 0) — otherwise
+   *  bad_slot simply means the validator hasn't loaded epoch data yet (startup). */
+  badSlot: number;
   /** okay + completes from FEC resolver — each generates a repair/replay notification */
   repairShreds: number;
   /** FEC sets forwarded to txproc tile */
@@ -154,6 +161,7 @@ function SankeyInner({
   mcastSrcs,
   mcastShreds,
   dedupSkipped,
+  badSlot,
   turbineFwdBytes,
   mcastFwdBytes,
   repairShreds,
@@ -171,6 +179,12 @@ function SankeyInner({
     const m = Math.max(1, totalMcast);
     const totalIn = t + m;
 
+    // Only show bad_slot when epoch data is loaded and FEC is working.
+    // When repairShreds == 0 the validator has no leader schedule yet (startup /
+    // snapshot not loaded) and every shred hits bad_slot — that is expected, not an error.
+    const showBadSlot = badSlot > 0.5 && repairShreds > 0;
+    const badSlotClipped = showBadSlot ? Math.min(badSlot, t - 1) : 0;
+
     // Per-source race losses (before_credit path in smcast tile)
     const mcastSrcDedupTotal = hasSrcs
       ? mcastSrcs.reduce((s, src) => s + src.dedup, 0)
@@ -178,7 +192,7 @@ function SankeyInner({
     // Remaining dedup = after_frag turbine-vs-mcast dups
     const shredprocDedup = Math.max(0, dedupSkipped - mcastSrcDedupTotal);
     // Per-source dups bypass shredproc, so forwarded excludes only after_frag dups
-    const forwarded = Math.max(1, totalIn - shredprocDedup);
+    const forwarded = Math.max(1, totalIn - shredprocDedup - badSlotClipped);
 
     const avgShredBytes = 1200;
     const turbineFwdShredsRaw = Math.round(turbineFwdBytes / avgShredBytes);
@@ -205,7 +219,8 @@ function SankeyInner({
       }
     }
 
-    // Column 1: dedup drop nodes first (aligned with turbine band), then mcast receiver below
+    // Column 1: bad_slot first (epoch-unknown drop, turbine side), then cross-source dedup, then mcast receiver below
+    if (showBadSlot) nodes.push({ id: NODE_BAD_SLOT, fixedLayer: 1 });
     if (shredprocDedup > 0)
       nodes.push({ id: NODE_TURBINE_DEDUP, fixedLayer: 1 });
     if (hasSrcs) {
@@ -233,7 +248,8 @@ function SankeyInner({
 
     // shredprocDedup = turbine-vs-mcast cross-source dups: turbine shreds dropped
     // because mcast already had them. Attributed to turbine in, not mcast receiver.
-    const turbineToShredproc = Math.max(1, t - shredprocDedup);
+    // bad_slot shreds are also dropped before reaching shredproc.
+    const turbineToShredproc = Math.max(1, t - shredprocDedup - badSlotClipped);
     const links: { source: string; target: string; value: number }[] = [
       {
         source: NODE_TURBINE_IN,
@@ -241,6 +257,13 @@ function SankeyInner({
         value: turbineToShredproc,
       },
     ];
+    if (showBadSlot) {
+      links.push({
+        source: NODE_TURBINE_IN,
+        target: NODE_BAD_SLOT,
+        value: badSlotClipped,
+      });
+    }
     if (shredprocDedup > 0) {
       links.push({
         source: NODE_TURBINE_IN,
@@ -326,6 +349,7 @@ function SankeyInner({
     mcastSrcs,
     mcastShreds,
     dedupSkipped,
+    badSlot,
     turbineFwdBytes,
     mcastFwdBytes,
     repairShreds,
@@ -367,6 +391,7 @@ export default function ShredSankey() {
   const turbineShredsRaw = liveNetworkMetrics?.ingress[SHREDS_IDX] ?? 0;
   const mcastShredsRaw = liveNetworkMetrics?.ingress[MCAST_IDX] ?? 0;
   const dedupSkippedRaw = liveNetworkMetrics?.ingress[DEDUP_SKIPPED_IDX] ?? 0;
+  const badSlotRaw = liveNetworkMetrics?.ingress[BAD_SLOT_IDX] ?? 0;
   const okayRaw = liveNetworkMetrics?.ingress[OKAY_IDX] ?? 0;
   const completesRaw = liveNetworkMetrics?.ingress[COMPLETES_IDX] ?? 0;
   const txprocFecSetsRaw =
@@ -379,6 +404,7 @@ export default function ShredSankey() {
   const turbineShreds = useEmaValue(turbineShredsRaw, emaOptions);
   const mcastShreds = useEmaValue(mcastShredsRaw, emaOptions);
   const dedupSkipped = useEmaValue(dedupSkippedRaw, emaOptions);
+  const badSlot = useEmaValue(badSlotRaw, emaOptions);
   const okay = useEmaValue(okayRaw, emaOptions);
   const completes = useEmaValue(completesRaw, emaOptions);
   const txprocFecSets = useEmaValue(txprocFecSetsRaw, emaOptions);
@@ -437,6 +463,7 @@ export default function ShredSankey() {
                   mcastSrcs={mcastSrcs}
                   mcastShreds={Math.round(mcastShreds)}
                   dedupSkipped={Math.round(dedupSkipped)}
+                  badSlot={Math.round(badSlot)}
                   turbineFwdBytes={turbineFwdBytes}
                   mcastFwdBytes={mcastFwdBytes}
                   repairShreds={Math.round(okay + completes)}
