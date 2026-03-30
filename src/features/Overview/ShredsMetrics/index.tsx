@@ -22,7 +22,7 @@ const TURBINE_BYTES_IDX = 0; // turbine.unicast bytes
 const SHREDS_IDX = 6; // turbine shred count
 const MCAST_IDX = 7; // mcast shred count
 const MCAST_NEW_IDX = 8; // mcast shreds arriving before turbine
-const TURBINE_DUP_IDX = 9; // turbine shreds that were duplicates (smcast dedup)
+const DEDUP_SKIPPED_IDX = 10; // all shreds dropped by smcast as duplicates (cross-source + per-source mcast)
 
 function formatShredsPerSec(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M /s`;
@@ -207,8 +207,8 @@ function IngressTotalRow({ ingress }: { ingress: number[] }) {
 function DedupRow({ ingress }: { ingress: number[] }) {
   const turbineShreds = ingress[SHREDS_IDX] ?? 0;
   const mcastShreds = ingress[MCAST_IDX] ?? 0;
-  const turbineDup = ingress[TURBINE_DUP_IDX] ?? 0;
-  const unique = Math.max(0, turbineShreds + mcastShreds - turbineDup);
+  const dedupSkipped = ingress[DEDUP_SKIPPED_IDX] ?? 0;
+  const unique = Math.max(0, turbineShreds + mcastShreds - dedupSkipped);
   const emaUnique = useEmaValue(unique, emaOptions);
 
   return (

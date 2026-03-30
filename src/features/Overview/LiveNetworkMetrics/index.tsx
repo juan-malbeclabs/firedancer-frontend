@@ -149,12 +149,13 @@ function NetworkMetricsCard({
                   />
                 );
               }
-              // shreds/mcast/mcast_new/turbine_dup are shown in the dedicated ShredsMetrics card
+              // shreds/mcast/mcast_new/turbine_dup/dedup_skipped are shown in the dedicated ShredsMetrics card
               if (
                 protocol === "shreds" ||
                 protocol === "mcast" ||
                 protocol === "mcast_new" ||
-                protocol === "turbine_dup"
+                protocol === "turbine_dup" ||
+                protocol === "dedup_skipped"
               ) {
                 return null;
               }

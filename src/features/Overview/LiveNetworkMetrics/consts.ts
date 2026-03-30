@@ -11,6 +11,7 @@ export const networkProtocols = [
   "mcast",
   "mcast_new",
   "turbine_dup",
+  "dedup_skipped",
 ] as const;
 
 type NetworkProtocol = (typeof networkProtocols)[number];
@@ -37,6 +38,7 @@ export const networkMaxByteValues: {
     mcast: 100_000,
     mcast_new: 100_000,
     turbine_dup: 100_000,
+    dedup_skipped: 100_000,
     Total:
       (64_000_000 +
         64_000_000 +
@@ -57,6 +59,7 @@ export const networkMaxByteValues: {
     mcast: 100_000,
     mcast_new: 100_000,
     turbine_dup: 100_000,
+    dedup_skipped: 100_000,
     Total:
       (1_000_000_000 +
         1_000_000_000 +
