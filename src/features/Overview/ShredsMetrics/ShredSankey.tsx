@@ -332,7 +332,7 @@ function SankeyInner({
       height={height}
       width={width}
       data={data}
-      margin={{ top: 10, right: 120, bottom: 10, left: 130 }}
+      margin={{ top: 10, right: 120, bottom: 10, left: 175 }}
       align="center"
       isInteractive={false}
       nodeThickness={0}
