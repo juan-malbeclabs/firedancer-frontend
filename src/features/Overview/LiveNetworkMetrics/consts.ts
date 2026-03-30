@@ -16,7 +16,7 @@ export const networkProtocols = [
 type NetworkProtocol = (typeof networkProtocols)[number];
 export type NetworkMetricsTableRowLabel = "Total";
 
-// Shared max for the Total row in both Ingress and Egress tables (1 Gb/s link).
+// Max for the Total row utilization bar (1 Gb/s link).
 export const NETWORK_TOTAL_MAX_BYTES = 1_000_000_000 / 8;
 
 // For "shreds"/"mcast"/"mcast_new"/"turbine_dup", the max is a count (shreds/s), not bytes.
@@ -28,9 +28,9 @@ export const networkMaxByteValues: {
   Ingress: {
     "turbine.unicast": 64_000_000 / 8,
     "turbine.multicast": 64_000_000 / 8,
-    gossip: 1_000_000_000 / 8,
+    gossip: 20_000_000 / 8,
     tpu: 100_000_000 / 8,
-    repair: 1_000_000 / 8,
+    repair: 10_000_000 / 8,
     metrics: 10_000 / 8,
     shreds: 100_000, // ~100k shreds/s max for utilization bar
     mcast: 100_000,
@@ -39,18 +39,18 @@ export const networkMaxByteValues: {
     Total:
       (64_000_000 +
         64_000_000 +
-        1_000_000_000 +
+        20_000_000 +
         100_000_000 +
-        1_000_000 +
+        10_000_000 +
         10_000) /
       8,
   },
   Egress: {
     "turbine.unicast": 1_000_000_000 / 8,
     "turbine.multicast": 1_000_000_000 / 8,
-    gossip: 1_000_000_000 / 8,
+    gossip: 20_000_000 / 8,
     tpu: 1_000_000 / 8,
-    repair: 1_000_000 / 8,
+    repair: 10_000_000 / 8,
     metrics: 10_000 / 8,
     shreds: 100_000,
     mcast: 100_000,
@@ -59,9 +59,9 @@ export const networkMaxByteValues: {
     Total:
       (1_000_000_000 +
         1_000_000_000 +
-        1_000_000_000 +
+        20_000_000 +
         1_000_000 +
-        1_000_000 +
+        10_000_000 +
         10_000 +
         1_000_000_000) /
       8,

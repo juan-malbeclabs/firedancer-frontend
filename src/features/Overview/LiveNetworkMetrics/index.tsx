@@ -17,17 +17,6 @@ import { headerGap } from "../../Gossip/consts";
 import type { CSSProperties } from "react";
 import styles from "./liveNetworkMetrics.module.css";
 import { sum } from "lodash";
-
-const emaOptions = {
-  halfLifeMs: 1_000,
-};
-
-function getBitsUnit(bitsPerSec: number): { unit: string; divisor: number } {
-  if (bitsPerSec >= 1e9) return { unit: "Gb", divisor: 1e9 };
-  if (bitsPerSec >= 1e6) return { unit: "Mb", divisor: 1e6 };
-  if (bitsPerSec >= 1e3) return { unit: "Kb", divisor: 1e3 };
-  return { unit: "b", divisor: 1 };
-}
 import { tileChartDarkBackground } from "../../../colors";
 import { clientAtom } from "../../../atoms";
 import { ClientEnum } from "../../../api/entities";
@@ -36,6 +25,10 @@ import type { mcastSrcSchema } from "../../../api/entities";
 import type { z } from "zod";
 
 type McastSrc = z.infer<typeof mcastSrcSchema>;
+
+const emaOptions = {
+  halfLifeMs: 1_000,
+};
 
 const chartHeight = 18;
 
@@ -77,10 +70,6 @@ function NetworkMetricsCard({
     : type === "Egress"
       ? sum(metrics.slice(0, 7)) /* include mcast relay bytes (idx 6) */
       : sum(metrics.slice(0, 6));
-  const totalEma = useEmaValue(totalRaw, emaOptions);
-  const { unit: sharedUnit, divisor: sharedDivisor } = getBitsUnit(
-    totalEma * 8,
-  );
 
   return (
     <Card style={{ flexGrow: 1 }}>
@@ -145,8 +134,6 @@ function NetworkMetricsCard({
                     value={value}
                     label="mcast out"
                     maxOverride={1_000_000_000 / 8}
-                    sharedUnit={sharedUnit}
-                    sharedDivisor={sharedDivisor}
                   />
                 );
               }
@@ -179,21 +166,10 @@ function NetworkMetricsCard({
                     maxOverride={
                       networkMaxByteValues[type]["turbine.multicast"]
                     }
-                    sharedUnit={sharedUnit}
-                    sharedDivisor={sharedDivisor}
                   />
                 ));
               }
-              return (
-                <TableRow
-                  key={i}
-                  type={type}
-                  value={value}
-                  idx={i}
-                  sharedUnit={sharedUnit}
-                  sharedDivisor={sharedDivisor}
-                />
-              );
+              return <TableRow key={i} type={type} value={value} idx={i} />;
             })}
             <TableRow
               type={type}
@@ -201,8 +177,6 @@ function NetworkMetricsCard({
               label="Total"
               maxOverride={NETWORK_TOTAL_MAX_BYTES}
               className={styles.totalRow}
-              sharedUnit={sharedUnit}
-              sharedDivisor={sharedDivisor}
             />
           </Table.Body>
         </Table.Root>
@@ -217,8 +191,6 @@ interface TableRowProps {
   idx?: number;
   label?: string;
   maxOverride?: number;
-  sharedUnit?: string;
-  sharedDivisor?: number;
 }
 
 function formatShredsPerSec(value: number): string {
@@ -233,8 +205,6 @@ function TableRow({
   idx,
   label,
   maxOverride,
-  sharedUnit,
-  sharedDivisor,
   ...props
 }: TableRowProps & Table.RootProps) {
   const emaValue = useEmaValue(value, emaOptions);
@@ -248,8 +218,6 @@ function TableRow({
   let displayValue: string;
   if (isShreds) {
     displayValue = formatShredsPerSec(emaValue);
-  } else if (sharedDivisor !== undefined && sharedUnit !== undefined) {
-    displayValue = `${((emaValue * 8) / sharedDivisor).toFixed(1)} ${sharedUnit}`;
   } else {
     const fmt = formatBytesAsBits(emaValue);
     displayValue = `${fmt.value} ${fmt.unit}`;
