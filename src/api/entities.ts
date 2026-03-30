@@ -149,6 +149,7 @@ export const estimatedTpsSchema = z.object({
 
 export const mcastSrcSchema = z.object({
   label: z.string(),
+  grp_label: z.string().optional(),
   shreds: z.number(),
   bytes: z.number(),
   dedup: z.number().default(0),

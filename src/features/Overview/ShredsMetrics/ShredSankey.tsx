@@ -388,7 +388,7 @@ export default function ShredSankey() {
   const mcastSrcs = useMemo(() => {
     if (!rawSrcs || rawSrcs.length === 0) return null;
     return rawSrcs.map((src) => ({
-      label: src.label,
+      label: src.grp_label ?? src.label,
       shreds: Math.round(srcEmaMap.get(src.label)?.shreds ?? 0),
       dedup: Math.round(srcEmaMap.get(src.label)?.dedup ?? 0),
     }));
