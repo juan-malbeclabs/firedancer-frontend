@@ -70,6 +70,16 @@ function RaceRow({ entry, window: win }: RaceRowProps) {
       </Table.RowHeaderCell>
       <Table.Cell
         align="right"
+        style={{
+          color: firstColor,
+          fontVariantNumeric: "tabular-nums",
+          fontWeight: 600,
+        }}
+      >
+        {total > 0 ? `${(winRate * 100).toFixed(1)}%` : "—"}
+      </Table.Cell>
+      <Table.Cell
+        align="right"
         style={{ color: firstColor, fontVariantNumeric: "tabular-nums" }}
       >
         {formatCount(win.first)}
@@ -169,6 +179,19 @@ export default function ShredRaceCard() {
             <Table.Row>
               <Table.ColumnHeaderCell width="90px">
                 Source
+              </Table.ColumnHeaderCell>
+              <Table.ColumnHeaderCell align="right" width="60px">
+                <Tooltip content="% of contested shreds where this source arrived first (win rate)">
+                  <Flex
+                    align="center"
+                    gap="1"
+                    justify="end"
+                    style={{ cursor: "help" }}
+                  >
+                    %1st
+                    <InfoCircledIcon style={{ opacity: 0.5 }} />
+                  </Flex>
+                </Tooltip>
               </Table.ColumnHeaderCell>
               <Table.ColumnHeaderCell align="right" width="65px">
                 1st
