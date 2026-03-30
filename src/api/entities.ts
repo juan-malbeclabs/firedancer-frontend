@@ -152,6 +152,7 @@ export const mcastSrcSchema = z.object({
   shreds: z.number(),
   bytes: z.number(),
   dedup: z.number().default(0),
+  parse_failed: z.number().default(0),
 });
 
 export const shredRaceEntrySchema = z.object({

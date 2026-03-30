@@ -10,11 +10,12 @@ import type { CSSProperties } from "react";
 import styles from "../LiveNetworkMetrics/liveNetworkMetrics.module.css";
 import { Bars } from "../../StartupProgress/Firedancer/Bars";
 import TileSparkLine from "../SlotPerformance/TileSparkLine";
-import { tileChartDarkBackground } from "../../../colors";
+import { tileChartDarkBackground, failureColor } from "../../../colors";
 import { formatBytesAsBits } from "../../../utils";
 
 const chartHeight = 18;
 const maxShredsPerSec = 100_000;
+const MAX_MCAST_DISPLAY = 5;
 
 // Ingress array indices (see networkProtocols in LiveNetworkMetrics/consts.ts)
 const TURBINE_BYTES_IDX = 0; // turbine.unicast bytes
@@ -105,21 +106,48 @@ interface McastSrcRowProps {
   label: string;
   shreds: number;
   bytes: number;
+  dedup?: number;
+  parseFailed?: number;
 }
 
-function McastSrcRow({ label, shreds, bytes }: McastSrcRowProps) {
+function McastSrcRow({
+  label,
+  shreds,
+  bytes,
+  dedup = 0,
+  parseFailed = 0,
+}: McastSrcRowProps) {
   const emaShreds = useEmaValue(shreds, emaOptions);
   const emaBytes = useEmaValue(bytes, emaOptions);
+  const emaDedup = useEmaValue(dedup, emaOptions);
+  const emaParseFailed = useEmaValue(parseFailed, emaOptions);
   const formattedBytes = formatBytesAsBits(emaBytes);
+  const totalDropped = emaDedup + emaParseFailed;
 
   return (
     <Table.Row>
       <Table.RowHeaderCell>{label}</Table.RowHeaderCell>
       <Table.Cell align="right">
-        {formatShredsPerSec(emaShreds)}
-        <Text size="1" style={{ opacity: 0.6, marginLeft: 4 }}>
-          {formattedBytes.value} {formattedBytes.unit}
-        </Text>
+        <Flex align="center" justify="end" gap="1" wrap="wrap">
+          <span>
+            {formatShredsPerSec(emaShreds)}
+            <Text size="1" style={{ opacity: 0.6, marginLeft: 4 }}>
+              {formattedBytes.value} {formattedBytes.unit}
+            </Text>
+          </span>
+          {totalDropped > 0.5 && (
+            <Tooltip
+              content={`${formatShredsPerSec(emaDedup)} dup/s, ${formatShredsPerSec(emaParseFailed)} parse err/s`}
+            >
+              <Text
+                size="1"
+                style={{ color: failureColor, cursor: "help", opacity: 0.9 }}
+              >
+                {formatShredsPerSec(totalDropped)} dropped
+              </Text>
+            </Tooltip>
+          )}
+        </Flex>
       </Table.Cell>
       <Table.Cell className={styles.chart}>
         <Flex align="center">
@@ -219,6 +247,13 @@ export default function ShredsMetrics() {
 
   const mcastSrcs = liveNetworkMetrics.mcast_srcs;
   const hasMcastSrcs = mcastSrcs && mcastSrcs.length > 0;
+  const displayedSrcs = hasMcastSrcs
+    ? mcastSrcs.slice(0, MAX_MCAST_DISPLAY)
+    : undefined;
+  const hiddenCount =
+    hasMcastSrcs && mcastSrcs.length > MAX_MCAST_DISPLAY
+      ? mcastSrcs.length - MAX_MCAST_DISPLAY
+      : 0;
 
   return (
     <Card style={{ flexGrow: 1 }}>
@@ -264,15 +299,32 @@ export default function ShredsMetrics() {
 
           <Table.Body>
             <TurbineRow ingress={liveNetworkMetrics.ingress} />
-            {hasMcastSrcs
-              ? mcastSrcs.map((src) => (
-                  <McastSrcRow
-                    key={src.label}
-                    label={src.label}
-                    shreds={src.shreds}
-                    bytes={src.bytes}
-                  />
-                ))
+            {displayedSrcs
+              ? [
+                  ...displayedSrcs.map((src) => (
+                    <McastSrcRow
+                      key={src.label}
+                      label={src.label}
+                      shreds={src.shreds}
+                      bytes={src.bytes}
+                      dedup={src.dedup}
+                      parseFailed={src.parse_failed}
+                    />
+                  )),
+                  hiddenCount > 0 && (
+                    <Table.Row key="more">
+                      <Table.Cell colSpan={4}>
+                        <Text
+                          size="1"
+                          style={{ opacity: 0.45, fontStyle: "italic" }}
+                        >
+                          and {hiddenCount} more source
+                          {hiddenCount > 1 ? "s" : ""}…
+                        </Text>
+                      </Table.Cell>
+                    </Table.Row>
+                  ),
+                ]
               : [
                   <McastSrcRow
                     key="mcast"
