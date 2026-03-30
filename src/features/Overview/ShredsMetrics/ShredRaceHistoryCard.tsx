@@ -10,7 +10,7 @@ import { successColor } from "../../../colors";
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
-const MAX_BUCKETS = 60;
+const MAX_BUCKETS = 300;
 const CHART_H = 200;
 const ML = 38; // left margin for y-axis labels
 const MR = 8;
@@ -184,14 +184,14 @@ export default function ShredRaceHistoryCard() {
   )
     return null;
 
-  const X_TICKS = [60, 45, 30, 15, 0] as const;
+  const X_TICKS = [300, 240, 180, 120, 60, 0] as const;
 
   return (
     <Card style={{ width: "100%" }}>
       <Flex direction="column" gap={headerGap}>
         {/* ── Header + legend ── */}
         <Flex justify="between" align="center" wrap="wrap" gap="2">
-          <Text className={tableStyles.headerText}>Shred Race · 60s</Text>
+          <Text className={tableStyles.headerText}>Shred Race · 5m</Text>
           <Flex gap="3" wrap="wrap">
             {sourceLabels.map((label, i) => (
               <Flex key={label} align="center" gap="1">
@@ -361,6 +361,7 @@ export default function ShredRaceHistoryCard() {
           {X_TICKS.map((sAgo) => {
             const slot = MAX_BUCKETS - 1 - sAgo;
             const x = ML + (slot + 0.5) * barW;
+            const label = sAgo === 0 ? "now" : `-${sAgo / 60}m`;
             return (
               <text
                 key={sAgo}
@@ -370,7 +371,7 @@ export default function ShredRaceHistoryCard() {
                 fontSize={9}
                 fill="rgba(255,255,255,0.3)"
               >
-                {sAgo === 0 ? "now" : `-${sAgo}s`}
+                {label}
               </text>
             );
           })}
