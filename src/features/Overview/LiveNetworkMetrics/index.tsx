@@ -5,8 +5,8 @@ import { Flex, Table, Text } from "@radix-ui/themes";
 import tableStyles from "../../Gossip/table.module.css";
 import { useEmaValue } from "../../../hooks/useEma";
 import {
-  networkMaxByteValues,
   networkProtocols,
+  NETWORK_LINK_MAX_BYTES,
   NETWORK_TOTAL_MAX_BYTES,
   type NetworkMetricsCardType,
 } from "./consts";
@@ -133,7 +133,7 @@ function NetworkMetricsCard({
                     type={type}
                     value={value}
                     label="mcast out"
-                    maxOverride={1_000_000_000 / 8}
+                    maxOverride={NETWORK_LINK_MAX_BYTES}
                   />
                 );
               }
@@ -163,9 +163,7 @@ function NetworkMetricsCard({
                     type={type}
                     value={src.bytes}
                     label={src.label}
-                    maxOverride={
-                      networkMaxByteValues[type]["turbine.multicast"]
-                    }
+                    maxOverride={NETWORK_LINK_MAX_BYTES}
                   />
                 ));
               }
@@ -210,10 +208,7 @@ function TableRow({
   const emaValue = useEmaValue(value, emaOptions);
   const rowLabel = label ?? networkProtocols[idx ?? -1];
   const isShreds = rowLabel === "shreds" || rowLabel === "mcast";
-  const maxValue =
-    maxOverride ??
-    (networkMaxByteValues[type] as Record<string, number>)[rowLabel ?? ""] ??
-    100_000_000;
+  const maxValue = maxOverride ?? NETWORK_LINK_MAX_BYTES;
 
   let displayValue: string;
   if (isShreds) {

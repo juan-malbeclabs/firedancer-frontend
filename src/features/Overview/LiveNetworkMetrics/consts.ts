@@ -16,8 +16,9 @@ export const networkProtocols = [
 type NetworkProtocol = (typeof networkProtocols)[number];
 export type NetworkMetricsTableRowLabel = "Total";
 
-// Max for the Total row utilization bar (1 Gb/s link).
-export const NETWORK_TOTAL_MAX_BYTES = 1_000_000_000 / 8;
+// Max for all utilization bars (500 Mb/s link).
+export const NETWORK_LINK_MAX_BYTES = 500_000_000 / 8;
+export const NETWORK_TOTAL_MAX_BYTES = NETWORK_LINK_MAX_BYTES;
 
 // For "shreds"/"mcast"/"mcast_new"/"turbine_dup", the max is a count (shreds/s), not bytes.
 export const networkMaxByteValues: {
