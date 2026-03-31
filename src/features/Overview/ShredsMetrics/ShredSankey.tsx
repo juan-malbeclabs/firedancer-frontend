@@ -237,8 +237,8 @@ function SankeyInner({
     nodes.push({ id: NODE_UNICAST, fixedLayer: 2 });
     nodes.push({ id: NODE_MCAST_RCVR, fixedLayer: 2 });
 
-    nodes.push({ id: NODE_FORWARDED });
-    if (showBadSlot) nodes.push({ id: NODE_BAD_SLOT });
+    nodes.push({ id: NODE_FORWARDED, fixedLayer: 3 });
+    if (showBadSlot) nodes.push({ id: NODE_BAD_SLOT, fixedLayer: 3 });
     if (turbineFwdShreds > 0) nodes.push({ id: NODE_TURBINE_FWD });
     if (mcastFwdShreds > 0) nodes.push({ id: NODE_MCAST_FWD });
     if (repairShredsScaled > 0) nodes.push({ id: NODE_REPAIR });
