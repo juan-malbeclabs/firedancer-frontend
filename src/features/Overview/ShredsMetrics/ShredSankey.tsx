@@ -1,6 +1,9 @@
 import { useMemo, useRef, useState, useEffect } from "react";
 import { useAtomValue } from "jotai";
-import { liveNetworkMetricsAtom } from "../../../api/atoms";
+import {
+  liveNetworkMetricsAtom,
+  liveTilePrimaryMetricAtom,
+} from "../../../api/atoms";
 import { Sankey } from "../../../sankey";
 import AutoSizer from "react-virtualized-auto-sizer";
 import Card from "../../../components/Card";
@@ -389,6 +392,7 @@ function NullComponent() {
 
 export default function ShredSankey() {
   const liveNetworkMetrics = useAtomValue(liveNetworkMetricsAtom);
+  const tilePrimaryMetric = useAtomValue(liveTilePrimaryMetricAtom);
 
   const turbineShredsRaw = liveNetworkMetrics?.ingress[SHREDS_IDX] ?? 0;
   const mcastShredsRaw = liveNetworkMetrics?.ingress[MCAST_IDX] ?? 0;
@@ -435,6 +439,11 @@ export default function ShredSankey() {
     : 0;
   const hasData = turbineShreds > 0 || mcastShreds > 0 || mcastSrcTotal > 0;
 
+  const dexfBatches = tilePrimaryMetric?.tile_primary_metric?.dexf_batches ?? 0;
+  const dexfTxns = tilePrimaryMetric?.tile_primary_metric?.dexf_received ?? 0;
+  const dexfDexTxns =
+    tilePrimaryMetric?.tile_primary_metric?.dexf_dex_txns ?? 0;
+
   return (
     <Card style={{ flexGrow: 1 }}>
       <Flex direction="column" height="100%" gap={headerGap}>
@@ -452,6 +461,21 @@ export default function ShredSankey() {
             {turbineFwdBytes > 0 && (
               <Text size="1" style={{ opacity: 0.6 }}>
                 turbine fwd: {formatMbps(turbineFwdBytes)}
+              </Text>
+            )}
+            {dexfBatches > 0 && (
+              <Text size="1" style={{ opacity: 0.6 }}>
+                dex batches: {formatShredsPerSec(dexfBatches)}
+              </Text>
+            )}
+            {dexfTxns > 0 && (
+              <Text size="1" style={{ opacity: 0.6 }}>
+                dex txns: {formatShredsPerSec(dexfTxns)}
+              </Text>
+            )}
+            {dexfDexTxns > 0 && (
+              <Text size="1" style={{ opacity: 0.6 }}>
+                dex swaps: {formatShredsPerSec(dexfDexTxns)}
               </Text>
             )}
           </Flex>
