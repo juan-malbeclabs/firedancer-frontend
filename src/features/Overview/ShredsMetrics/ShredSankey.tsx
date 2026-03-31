@@ -219,9 +219,7 @@ function SankeyInner({
       }
     }
 
-    // Column 1: drop nodes that branch off before the aggregation stage.
-    //   turbine dedup — cross-source dups dropped from the turbine path.
-    //   per-src dedup — mcast race losers dropped per source.
+    // Column 1: drops (turbine dedup, per-src dedup)
     if (shredprocDedup > 0)
       nodes.push({ id: NODE_TURBINE_DEDUP, fixedLayer: 1 });
     if (hasSrcs) {
@@ -233,22 +231,26 @@ function SankeyInner({
       nodes.push({ id: NODE_DEDUP_DROP, fixedLayer: 1 });
     }
 
-    // Column 2: aggregation nodes — connect directly to forwarded (no shredproc).
+    // Column 2: aggregation nodes (unicast, multicast)
     nodes.push({ id: NODE_UNICAST, fixedLayer: 2 });
     nodes.push({ id: NODE_MCAST_RCVR, fixedLayer: 2 });
 
+    // Column 3: forwarded + bad slot
     nodes.push({ id: NODE_FORWARDED, fixedLayer: 3 });
     if (showBadSlot) nodes.push({ id: NODE_BAD_SLOT, fixedLayer: 3 });
-    if (turbineFwdShreds > 0) nodes.push({ id: NODE_TURBINE_FWD });
-    if (mcastFwdShreds > 0) nodes.push({ id: NODE_MCAST_FWD });
-    if (repairShredsScaled > 0) nodes.push({ id: NODE_REPAIR });
-    if (txprocShreds > 0) nodes.push({ id: NODE_TXPROC });
+
+    // Column 4: downstream outputs
+    if (turbineFwdShreds > 0)
+      nodes.push({ id: NODE_TURBINE_FWD, fixedLayer: 4 });
+    if (mcastFwdShreds > 0) nodes.push({ id: NODE_MCAST_FWD, fixedLayer: 4 });
+    if (repairShredsScaled > 0) nodes.push({ id: NODE_REPAIR, fixedLayer: 4 });
+    if (txprocShreds > 0) nodes.push({ id: NODE_TXPROC, fixedLayer: 4 });
 
     // Local replay: shreds that pass dedup but aren't attributed to any forwarded output
     const outputSum =
       turbineFwdShreds + mcastFwdShreds + repairShredsScaled + txprocShreds;
     const localShreds = Math.max(0, forwarded - outputSum);
-    if (localShreds > 1) nodes.push({ id: NODE_LOCAL });
+    if (localShreds > 1) nodes.push({ id: NODE_LOCAL, fixedLayer: 4 });
 
     // turbine in splits at col 0: main flow → unicast (col 2), dedup drop → col 1.
     const turbineAfterDedup = Math.max(1, t - shredprocDedup);
