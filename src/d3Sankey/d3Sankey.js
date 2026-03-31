@@ -255,7 +255,10 @@ export default function d3Sankey() {
   }
 
   function computeNodeLayers({ nodes }) {
-    const x = max(nodes, (d) => d.depth) + 1;
+    const fixedNodes = nodes.filter((n) => n.fixedLayer !== undefined);
+    const maxFixedLayer =
+      fixedNodes.length > 0 ? max(fixedNodes, (d) => d.fixedLayer) : -1;
+    const x = Math.max(max(nodes, (d) => d.depth) + 1, maxFixedLayer + 1);
     let kx = (x1 - x0 - dx) / (x - 1);
     const startEndNodeWidth = kx / slotEndRatio;
     const columns = new Array(x);
