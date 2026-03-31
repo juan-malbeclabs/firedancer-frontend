@@ -221,11 +221,11 @@ function SankeyInner({
       }
     }
 
-    // Column 1: unicast + multicast intermediate nodes + per-src dedup drops.
-    // turbine dedup and bad slot are outputs of shredproc (dropped inside the tile)
-    // so they live in the column after shredproc, not here.
-    nodes.push({ id: NODE_UNICAST, fixedLayer: 1 });
-    nodes.push({ id: NODE_MCAST_RCVR, fixedLayer: 1 });
+    // Column 1: drop nodes that branch off before the aggregation stage.
+    //   turbine dedup — cross-source dups dropped from the turbine path.
+    //   per-src dedup — mcast race losers dropped per source.
+    if (shredprocDedup > 0)
+      nodes.push({ id: NODE_TURBINE_DEDUP, fixedLayer: 1 });
     if (hasSrcs) {
       for (const src of mcastSrcs) {
         if (src.dedup > 0)
@@ -235,11 +235,13 @@ function SankeyInner({
       nodes.push({ id: NODE_DEDUP_DROP, fixedLayer: 1 });
     }
 
+    // Column 2: aggregation nodes.
+    nodes.push({ id: NODE_UNICAST, fixedLayer: 2 });
+    nodes.push({ id: NODE_MCAST_RCVR, fixedLayer: 2 });
+
     nodes.push({ id: NODE_SHREDPROC });
-    // Shredproc outputs: forwarded first (top), then drops (bottom → curve down)
     nodes.push({ id: NODE_FORWARDED });
     if (showBadSlot) nodes.push({ id: NODE_BAD_SLOT });
-    if (shredprocDedup > 0) nodes.push({ id: NODE_TURBINE_DEDUP });
     if (turbineFwdShreds > 0) nodes.push({ id: NODE_TURBINE_FWD });
     if (mcastFwdShreds > 0) nodes.push({ id: NODE_MCAST_FWD });
     if (repairShredsScaled > 0) nodes.push({ id: NODE_REPAIR });
@@ -251,26 +253,34 @@ function SankeyInner({
     const localShreds = Math.max(0, forwarded - outputSum);
     if (localShreds > 1) nodes.push({ id: NODE_LOCAL });
 
-    // turbine in → unicast → shredproc: all turbine shreds enter the tile.
-    // turbine dedup and bad_slot are dropped INSIDE shredproc, so they are
-    // outputs of shredproc, not of unicast.
+    // turbine dedup = cross-source dups dropped before the unicast aggregation node.
+    // turbine in splits: main flow → unicast (col 2), dedup drop → turbine dedup (col 1).
+    const turbineAfterDedup = Math.max(1, t - shredprocDedup);
     const links: { source: string; target: string; value: number }[] = [
-      { source: NODE_TURBINE_IN, target: NODE_UNICAST, value: t },
-      { source: NODE_UNICAST, target: NODE_SHREDPROC, value: t },
+      {
+        source: NODE_TURBINE_IN,
+        target: NODE_UNICAST,
+        value: turbineAfterDedup,
+      },
+      {
+        source: NODE_UNICAST,
+        target: NODE_SHREDPROC,
+        value: turbineAfterDedup,
+      },
     ];
-    // shredproc drops: emitted from the tile after ingesting both sources
+    if (shredprocDedup > 0) {
+      links.push({
+        source: NODE_TURBINE_IN,
+        target: NODE_TURBINE_DEDUP,
+        value: Math.min(shredprocDedup, t - 1),
+      });
+    }
+    // bad_slot is dropped inside shredproc (slot not in leader schedule)
     if (showBadSlot) {
       links.push({
         source: NODE_SHREDPROC,
         target: NODE_BAD_SLOT,
         value: badSlotClipped,
-      });
-    }
-    if (shredprocDedup > 0) {
-      links.push({
-        source: NODE_SHREDPROC,
-        target: NODE_TURBINE_DEDUP,
-        value: shredprocDedup,
       });
     }
 
