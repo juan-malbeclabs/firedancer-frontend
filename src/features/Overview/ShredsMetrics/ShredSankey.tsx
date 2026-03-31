@@ -30,8 +30,6 @@ const NODE_TURBINE_IN = "turbine in";
 const NODE_UNICAST =
   "unicast"; /* aggregates turbine unicast shreds before FEC resolver */
 const NODE_MCAST_RCVR = "multicast"; /* aggregates all multicast sources */
-const NODE_SHREDPROC =
-  "shredproc"; /* smcast tile — deduplicates turbine + mcast */
 const NODE_TURBINE_DEDUP =
   "turbine dedup"; /* turbine-vs-mcast cross-source dups */
 const NODE_DEDUP_DROP = "dedup drop"; /* fallback when no per-source data */
@@ -235,11 +233,10 @@ function SankeyInner({
       nodes.push({ id: NODE_DEDUP_DROP, fixedLayer: 1 });
     }
 
-    // Column 2: aggregation nodes.
+    // Column 2: aggregation nodes — connect directly to forwarded (no shredproc).
     nodes.push({ id: NODE_UNICAST, fixedLayer: 2 });
     nodes.push({ id: NODE_MCAST_RCVR, fixedLayer: 2 });
 
-    nodes.push({ id: NODE_SHREDPROC });
     nodes.push({ id: NODE_FORWARDED });
     if (showBadSlot) nodes.push({ id: NODE_BAD_SLOT });
     if (turbineFwdShreds > 0) nodes.push({ id: NODE_TURBINE_FWD });
@@ -253,9 +250,11 @@ function SankeyInner({
     const localShreds = Math.max(0, forwarded - outputSum);
     if (localShreds > 1) nodes.push({ id: NODE_LOCAL });
 
-    // turbine dedup = cross-source dups dropped before the unicast aggregation node.
-    // turbine in splits: main flow → unicast (col 2), dedup drop → turbine dedup (col 1).
+    // turbine in splits at col 0: main flow → unicast (col 2), dedup drop → col 1.
     const turbineAfterDedup = Math.max(1, t - shredprocDedup);
+    // unicast contributes (turbineAfterDedup - badSlotClipped) to forwarded;
+    // multicast contributes m. Both sum to forwarded (= totalIn - shredprocDedup - badSlotClipped).
+    const unicastToForwarded = Math.max(1, turbineAfterDedup - badSlotClipped);
     const links: { source: string; target: string; value: number }[] = [
       {
         source: NODE_TURBINE_IN,
@@ -264,8 +263,8 @@ function SankeyInner({
       },
       {
         source: NODE_UNICAST,
-        target: NODE_SHREDPROC,
-        value: turbineAfterDedup,
+        target: NODE_FORWARDED,
+        value: unicastToForwarded,
       },
     ];
     if (shredprocDedup > 0) {
@@ -275,10 +274,9 @@ function SankeyInner({
         value: Math.min(shredprocDedup, t - 1),
       });
     }
-    // bad_slot is dropped inside shredproc (slot not in leader schedule)
     if (showBadSlot) {
       links.push({
-        source: NODE_SHREDPROC,
+        source: NODE_UNICAST,
         target: NODE_BAD_SLOT,
         value: badSlotClipped,
       });
@@ -307,17 +305,7 @@ function SankeyInner({
         value: mcastSrcDedupTotal,
       });
     }
-    // mcast receiver → shredproc: full m (cross-source dedup is dropped inside shredproc)
-    links.push({
-      source: NODE_MCAST_RCVR,
-      target: NODE_SHREDPROC,
-      value: m,
-    });
-    links.push({
-      source: NODE_SHREDPROC,
-      target: NODE_FORWARDED,
-      value: forwarded,
-    });
+    links.push({ source: NODE_MCAST_RCVR, target: NODE_FORWARDED, value: m });
 
     if (turbineFwdShreds > 0) {
       links.push({
