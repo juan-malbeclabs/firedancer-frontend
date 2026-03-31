@@ -221,15 +221,11 @@ function SankeyInner({
       }
     }
 
-    // Column 1 ordered top → bottom:
-    //   unicast   — receives from turbine in, feeds shredproc (stays at top)
-    //   multicast — receives from mcast srcs, feeds shredproc (below unicast)
-    //   drops     — bad slot, turbine dedup, per-src dedup (bottom, curve down)
+    // Column 1: unicast + multicast intermediate nodes + per-src dedup drops.
+    // turbine dedup and bad slot are outputs of shredproc (dropped inside the tile)
+    // so they live in the column after shredproc, not here.
     nodes.push({ id: NODE_UNICAST, fixedLayer: 1 });
     nodes.push({ id: NODE_MCAST_RCVR, fixedLayer: 1 });
-    if (showBadSlot) nodes.push({ id: NODE_BAD_SLOT, fixedLayer: 1 });
-    if (shredprocDedup > 0)
-      nodes.push({ id: NODE_TURBINE_DEDUP, fixedLayer: 1 });
     if (hasSrcs) {
       for (const src of mcastSrcs) {
         if (src.dedup > 0)
@@ -240,7 +236,10 @@ function SankeyInner({
     }
 
     nodes.push({ id: NODE_SHREDPROC });
+    // Shredproc outputs: forwarded first (top), then drops (bottom → curve down)
     nodes.push({ id: NODE_FORWARDED });
+    if (showBadSlot) nodes.push({ id: NODE_BAD_SLOT });
+    if (shredprocDedup > 0) nodes.push({ id: NODE_TURBINE_DEDUP });
     if (turbineFwdShreds > 0) nodes.push({ id: NODE_TURBINE_FWD });
     if (mcastFwdShreds > 0) nodes.push({ id: NODE_MCAST_FWD });
     if (repairShredsScaled > 0) nodes.push({ id: NODE_REPAIR });
@@ -252,36 +251,26 @@ function SankeyInner({
     const localShreds = Math.max(0, forwarded - outputSum);
     if (localShreds > 1) nodes.push({ id: NODE_LOCAL });
 
-    // shredprocDedup = turbine-vs-mcast cross-source dups: turbine shreds dropped
-    // because mcast already had them. Attributed to turbine in, not mcast receiver.
-    // bad_slot shreds are also dropped before reaching shredproc.
-    const turbineToShredproc = Math.max(1, t - shredprocDedup - badSlotClipped);
+    // turbine in → unicast → shredproc: all turbine shreds enter the tile.
+    // turbine dedup and bad_slot are dropped INSIDE shredproc, so they are
+    // outputs of shredproc, not of unicast.
     const links: { source: string; target: string; value: number }[] = [
-      // turbine in → unicast (all turbine shreds enter the unicast lane)
-      {
-        source: NODE_TURBINE_IN,
-        target: NODE_UNICAST,
-        value: t,
-      },
-      // unicast → shredproc (after dropping bad_slot and cross-source dups)
-      {
-        source: NODE_UNICAST,
-        target: NODE_SHREDPROC,
-        value: turbineToShredproc,
-      },
+      { source: NODE_TURBINE_IN, target: NODE_UNICAST, value: t },
+      { source: NODE_UNICAST, target: NODE_SHREDPROC, value: t },
     ];
+    // shredproc drops: emitted from the tile after ingesting both sources
     if (showBadSlot) {
       links.push({
-        source: NODE_UNICAST,
+        source: NODE_SHREDPROC,
         target: NODE_BAD_SLOT,
         value: badSlotClipped,
       });
     }
     if (shredprocDedup > 0) {
       links.push({
-        source: NODE_UNICAST,
+        source: NODE_SHREDPROC,
         target: NODE_TURBINE_DEDUP,
-        value: Math.min(shredprocDedup, t - 1),
+        value: shredprocDedup,
       });
     }
 
@@ -308,7 +297,7 @@ function SankeyInner({
         value: mcastSrcDedupTotal,
       });
     }
-    // mcast receiver → shredproc: full m (cross-source dedup is already on turbine side)
+    // mcast receiver → shredproc: full m (cross-source dedup is dropped inside shredproc)
     links.push({
       source: NODE_MCAST_RCVR,
       target: NODE_SHREDPROC,
