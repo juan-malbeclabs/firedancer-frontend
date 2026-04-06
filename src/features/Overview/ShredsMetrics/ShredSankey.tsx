@@ -22,6 +22,7 @@ const BAD_SLOT_IDX = 11; /* shred_processed[0]: slot not in leader schedule */
 const OKAY_IDX = 15; /* shreds passing FEC resolver as new (okay) */
 const COMPLETES_IDX = 16; /* shreds completing a FEC set */
 const TXPROC_FEC_SETS_IDX = 17; /* FEC sets forwarded to txproc tile */
+const SIG_FAILED_IDX = 18; /* mcast shreds dropped due to invalid leader signature */
 
 const emaOptions = { halfLifeMs: 1_000 };
 
@@ -38,6 +39,8 @@ const NODE_TURBINE_DEDUP =
 const NODE_DEDUP_DROP = "dedup drop"; /* fallback when no per-source data */
 const NODE_BAD_SLOT =
   "bad slot"; /* shreds rejected: slot not in leader schedule */
+const NODE_SIG_FAIL =
+  "invalid sig"; /* mcast shreds dropped: bad leader signature */
 const NODE_FORWARDED = "forwarded";
 const NODE_TURBINE_FWD = "turbine fwd";
 const NODE_MCAST_FWD = "mcast fwd";
@@ -151,6 +154,8 @@ interface SankeyInnerProps {
    *  Only shown when FEC resolver is working (repairShreds > 0) — otherwise
    *  bad_slot simply means the validator hasn't loaded epoch data yet (startup). */
   badSlot: number;
+  /** shreds/s dropped by the smcast relay tile due to invalid leader Ed25519 signature. */
+  sigFailed: number;
   /** okay + completes from FEC resolver — each generates a repair/replay notification */
   repairShreds: number;
   /** FEC sets forwarded to txproc tile */
@@ -165,6 +170,7 @@ function SankeyInner({
   mcastShreds,
   dedupSkipped,
   badSlot,
+  sigFailed,
   turbineFwdBytes,
   mcastFwdBytes,
   repairShreds,
@@ -194,8 +200,13 @@ function SankeyInner({
       : 0;
     // Remaining dedup = after_frag turbine-vs-mcast dups
     const shredprocDedup = Math.max(0, dedupSkipped - mcastSrcDedupTotal);
-    // Per-source dups bypass shredproc, so forwarded excludes only after_frag dups
-    const forwarded = Math.max(1, totalIn - shredprocDedup - badSlotClipped);
+    // sig_failed: mcast shreds dropped by smcast after dedup due to bad leader signature
+    const sigFailedClipped = Math.min(sigFailed, Math.max(0, m - 1));
+    // Per-source dups bypass shredproc, so forwarded excludes only after_frag dups + sig failures
+    const forwarded = Math.max(
+      1,
+      totalIn - shredprocDedup - badSlotClipped - sigFailedClipped,
+    );
 
     const avgShredBytes = 1200;
     const turbineFwdShredsRaw = Math.round(turbineFwdBytes / avgShredBytes);
@@ -238,9 +249,10 @@ function SankeyInner({
     nodes.push({ id: NODE_UNICAST, fixedLayer: 2 });
     nodes.push({ id: NODE_MCAST_RCVR, fixedLayer: 2 });
 
-    // Column 3: forwarded + bad slot
+    // Column 3: forwarded + bad slot + sig_failed
     nodes.push({ id: NODE_FORWARDED, fixedLayer: 3 });
     if (showBadSlot) nodes.push({ id: NODE_BAD_SLOT, fixedLayer: 3 });
+    if (sigFailedClipped > 0) nodes.push({ id: NODE_SIG_FAIL, fixedLayer: 3 });
 
     // Column 4: downstream outputs
     if (turbineFwdShreds > 0)
@@ -310,7 +322,18 @@ function SankeyInner({
         value: mcastSrcDedupTotal,
       });
     }
-    links.push({ source: NODE_MCAST_RCVR, target: NODE_FORWARDED, value: m });
+    if (sigFailedClipped > 0) {
+      links.push({
+        source: NODE_MCAST_RCVR,
+        target: NODE_SIG_FAIL,
+        value: sigFailedClipped,
+      });
+    }
+    links.push({
+      source: NODE_MCAST_RCVR,
+      target: NODE_FORWARDED,
+      value: Math.max(1, m - sigFailedClipped),
+    });
 
     if (turbineFwdShreds > 0) {
       links.push({
@@ -355,6 +378,7 @@ function SankeyInner({
     mcastShreds,
     dedupSkipped,
     badSlot,
+    sigFailed,
     turbineFwdBytes,
     mcastFwdBytes,
     repairShreds,
@@ -398,6 +422,7 @@ export default function ShredSankey() {
   const mcastShredsRaw = liveNetworkMetrics?.ingress[MCAST_IDX] ?? 0;
   const dedupSkippedRaw = liveNetworkMetrics?.ingress[DEDUP_SKIPPED_IDX] ?? 0;
   const badSlotRaw = liveNetworkMetrics?.ingress[BAD_SLOT_IDX] ?? 0;
+  const sigFailedRaw = liveNetworkMetrics?.ingress[SIG_FAILED_IDX] ?? 0;
   const okayRaw = liveNetworkMetrics?.ingress[OKAY_IDX] ?? 0;
   const completesRaw = liveNetworkMetrics?.ingress[COMPLETES_IDX] ?? 0;
   const txprocFecSetsRaw =
@@ -411,6 +436,7 @@ export default function ShredSankey() {
   const mcastShreds = useEmaValue(mcastShredsRaw, emaOptions);
   const dedupSkipped = useEmaValue(dedupSkippedRaw, emaOptions);
   const badSlot = useEmaValue(badSlotRaw, emaOptions);
+  const sigFailed = useEmaValue(sigFailedRaw, emaOptions);
   const okay = useEmaValue(okayRaw, emaOptions);
   const completes = useEmaValue(completesRaw, emaOptions);
   const txprocFecSets = useEmaValue(txprocFecSetsRaw, emaOptions);
@@ -490,6 +516,7 @@ export default function ShredSankey() {
                   mcastShreds={Math.round(mcastShreds)}
                   dedupSkipped={Math.round(dedupSkipped)}
                   badSlot={Math.round(badSlot)}
+                  sigFailed={Math.round(sigFailed)}
                   turbineFwdBytes={turbineFwdBytes}
                   mcastFwdBytes={mcastFwdBytes}
                   repairShreds={Math.round(okay + completes)}
