@@ -180,7 +180,15 @@ function NetworkMetricsCard({
                   />
                 ));
               }
-              return <TableRow key={i} type={type} value={value} idx={i} />;
+              return (
+                <TableRow
+                  key={i}
+                  type={type}
+                  value={value}
+                  idx={i}
+                  maxOverride={dynMax}
+                />
+              );
             })}
             <TableRow
               type={type}
