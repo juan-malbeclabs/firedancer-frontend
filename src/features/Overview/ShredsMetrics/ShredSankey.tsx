@@ -245,27 +245,27 @@ function SankeyInner({
       nodes.push({ id: NODE_DEDUP_DROP, fixedLayer: 1 });
     }
 
-    // Column 2: aggregation nodes (unicast, multicast)
-    nodes.push({ id: NODE_UNICAST, fixedLayer: 2 });
-    nodes.push({ id: NODE_MCAST_RCVR, fixedLayer: 2 });
+    // Column 1: aggregation nodes (unicast, multicast) — same column as dedup drops
+    nodes.push({ id: NODE_UNICAST, fixedLayer: 1 });
+    nodes.push({ id: NODE_MCAST_RCVR, fixedLayer: 1 });
 
-    // Column 3: forwarded + bad slot + sig_failed
-    nodes.push({ id: NODE_FORWARDED, fixedLayer: 3 });
-    if (showBadSlot) nodes.push({ id: NODE_BAD_SLOT, fixedLayer: 3 });
-    if (sigFailedClipped > 0) nodes.push({ id: NODE_SIG_FAIL, fixedLayer: 3 });
+    // Column 2: forwarded + bad slot + sig_failed
+    nodes.push({ id: NODE_FORWARDED, fixedLayer: 2 });
+    if (showBadSlot) nodes.push({ id: NODE_BAD_SLOT, fixedLayer: 2 });
+    if (sigFailedClipped > 0) nodes.push({ id: NODE_SIG_FAIL, fixedLayer: 2 });
 
-    // Column 4: downstream outputs
+    // Column 3: downstream outputs
     if (turbineFwdShreds > 0)
-      nodes.push({ id: NODE_TURBINE_FWD, fixedLayer: 4 });
-    if (mcastFwdShreds > 0) nodes.push({ id: NODE_MCAST_FWD, fixedLayer: 4 });
-    if (repairShredsScaled > 0) nodes.push({ id: NODE_REPAIR, fixedLayer: 4 });
-    if (txprocShreds > 0) nodes.push({ id: NODE_TXPROC, fixedLayer: 4 });
+      nodes.push({ id: NODE_TURBINE_FWD, fixedLayer: 3 });
+    if (mcastFwdShreds > 0) nodes.push({ id: NODE_MCAST_FWD, fixedLayer: 3 });
+    if (repairShredsScaled > 0) nodes.push({ id: NODE_REPAIR, fixedLayer: 3 });
+    if (txprocShreds > 0) nodes.push({ id: NODE_TXPROC, fixedLayer: 3 });
 
     // Local replay: shreds that pass dedup but aren't attributed to any forwarded output
     const outputSum =
       turbineFwdShreds + mcastFwdShreds + repairShredsScaled + txprocShreds;
     const localShreds = Math.max(0, forwarded - outputSum);
-    if (localShreds > 1) nodes.push({ id: NODE_LOCAL, fixedLayer: 4 });
+    if (localShreds > 1) nodes.push({ id: NODE_LOCAL, fixedLayer: 3 });
 
     // turbine in splits at col 0: main flow → unicast (col 2), dedup drop → col 1.
     const turbineAfterDedup = Math.max(1, t - shredprocDedup);
