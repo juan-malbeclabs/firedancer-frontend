@@ -103,10 +103,10 @@ function RaceRow({ entry, window: win }: RaceRowProps) {
         {formatCount(win.third)}
       </Table.Cell>
       <Table.Cell align="right" style={{ fontVariantNumeric: "tabular-nums" }}>
-        {formatDelay(entry.delay_p95_us)}
+        {formatDelay(entry.delay_2nd_p95_us)}
       </Table.Cell>
       <Table.Cell align="right" style={{ fontVariantNumeric: "tabular-nums" }}>
-        {formatDelay(entry.delay_p99_us)}
+        {formatDelay(entry.delay_3rd_p95_us)}
       </Table.Cell>
     </Table.Row>
   );
@@ -203,27 +203,27 @@ export default function ShredRaceCard() {
                 3rd+
               </Table.ColumnHeaderCell>
               <Table.ColumnHeaderCell align="right" width="65px">
-                <Tooltip content="p95 latency behind first arrival (when not first)">
+                <Tooltip content="p95 latency behind first arrival (when arriving second)">
                   <Flex
                     align="center"
                     gap="1"
                     justify="end"
                     style={{ cursor: "help" }}
                   >
-                    p95
+                    p95 (2nd)
                     <InfoCircledIcon style={{ opacity: 0.5 }} />
                   </Flex>
                 </Tooltip>
               </Table.ColumnHeaderCell>
               <Table.ColumnHeaderCell align="right" width="65px">
-                <Tooltip content="p99 latency behind first arrival (when not first)">
+                <Tooltip content="p95 latency behind first arrival (when arriving third or later)">
                   <Flex
                     align="center"
                     gap="1"
                     justify="end"
                     style={{ cursor: "help" }}
                   >
-                    p99
+                    p95 (3rd)
                     <InfoCircledIcon style={{ opacity: 0.5 }} />
                   </Flex>
                 </Tooltip>

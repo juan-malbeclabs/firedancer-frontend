@@ -163,8 +163,8 @@ export const shredRaceEntrySchema = z.object({
   third: z.number(),
   solo: z.number(),
   total: z.number(),
-  delay_p95_us: z.number(),
-  delay_p99_us: z.number(),
+  delay_2nd_p95_us: z.number(),
+  delay_3rd_p95_us: z.number(),
 });
 
 export const liveNetworkMetricsSchema = z.object({
