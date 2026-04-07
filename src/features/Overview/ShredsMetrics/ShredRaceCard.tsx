@@ -12,9 +12,13 @@ import {
 } from "../../../colors";
 import { useEffect, useRef } from "react";
 import type { z } from "zod";
-import type { shredRaceEntrySchema } from "../../../api/entities";
+import type {
+  shredRaceEntrySchema,
+  smcastEpochSchema,
+} from "../../../api/entities";
 
 type ShredRaceEntry = z.infer<typeof shredRaceEntrySchema>;
+type SmcastEpoch = z.infer<typeof smcastEpochSchema>;
 
 const WINDOW_MIN = 5; // fixed 5-minute moving window
 
@@ -112,11 +116,37 @@ function RaceRow({ entry, window: win }: RaceRowProps) {
   );
 }
 
+function EpochStatus({ epoch }: { epoch: SmcastEpoch | undefined }) {
+  if (!epoch) return null;
+  if (!epoch.received) {
+    return (
+      <Tooltip content="The smcast tile has not yet loaded epoch stake data. Signature verification is in warmup mode (all shreds pass).">
+        <Flex align="center" gap="1" style={{ cursor: "help" }}>
+          <Text size="1" style={{ color: "#E5A50A" }}>
+            ⚠ waiting for epoch data
+          </Text>
+        </Flex>
+      </Tooltip>
+    );
+  }
+  const endSlot = epoch.start_slot + epoch.slot_cnt - 1;
+  return (
+    <Tooltip
+      content={`Epoch ${epoch.epoch}: slots ${epoch.start_slot.toLocaleString()}–${endSlot.toLocaleString()} (${epoch.slot_cnt.toLocaleString()} slots)`}
+    >
+      <Text size="1" style={{ color: secondaryTextColor, cursor: "help" }}>
+        epoch {epoch.epoch}
+      </Text>
+    </Tooltip>
+  );
+}
+
 export default function ShredRaceCard() {
   const liveNetworkMetrics = useAtomValue(liveNetworkMetricsAtom);
   const historyRef = useRef<RaceSnapshot[]>([]);
 
   const shredRace = liveNetworkMetrics?.shred_race;
+  const smcastEpoch = liveNetworkMetrics?.smcast_epoch;
 
   // Append a snapshot on every data update.
   useEffect(() => {
@@ -173,6 +203,7 @@ export default function ShredRaceCard() {
           <Text size="1" style={{ opacity: 0.5, marginLeft: 4 }}>
             5m
           </Text>
+          <EpochStatus epoch={smcastEpoch} />
         </Flex>
         <Table.Root variant="ghost" className={tableStyles.root} size="1">
           <Table.Header>

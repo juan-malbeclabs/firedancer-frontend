@@ -167,11 +167,19 @@ export const shredRaceEntrySchema = z.object({
   delay_3rd_p95_us: z.number(),
 });
 
+export const smcastEpochSchema = z.object({
+  received: z.boolean(),
+  epoch: z.number(),
+  start_slot: z.number(),
+  slot_cnt: z.number(),
+});
+
 export const liveNetworkMetricsSchema = z.object({
   ingress: z.array(z.number()),
   egress: z.array(z.number()),
   mcast_srcs: z.array(mcastSrcSchema).optional(),
   shred_race: z.array(shredRaceEntrySchema).optional(),
+  smcast_epoch: smcastEpochSchema.optional(),
 });
 
 export const txnWaterfallInSchema = z.object({
