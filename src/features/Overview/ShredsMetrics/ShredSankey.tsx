@@ -19,6 +19,7 @@ const SHREDS_IDX = 6; /* turbine shred count */
 const MCAST_IDX = 7; /* mcast shred count */
 const DEDUP_SKIPPED_IDX = 10; /* shreds dropped by smcast as duplicates */
 const BAD_SLOT_IDX = 11; /* shred_processed[0]: slot not in leader schedule */
+const PARSE_FAILED_IDX = 12; /* shred_processed[1]: turbine shreds dropped due to parse failure */
 const OKAY_IDX = 15; /* shreds passing FEC resolver as new (okay) */
 const COMPLETES_IDX = 16; /* shreds completing a FEC set */
 const TXPROC_FEC_SETS_IDX = 17; /* FEC sets forwarded to txproc tile */
@@ -41,6 +42,8 @@ const NODE_BAD_SLOT =
   "bad slot"; /* shreds rejected: slot not in leader schedule */
 const NODE_SIG_FAIL =
   "invalid sig"; /* mcast shreds dropped: bad leader signature */
+const NODE_PARSE_FAIL =
+  "parse failed"; /* turbine shreds dropped: fd_shred_parse returned NULL */
 const NODE_FORWARDED = "forwarded";
 const NODE_TURBINE_FWD = "turbine fwd";
 const NODE_MCAST_FWD = "mcast fwd";
@@ -63,26 +66,31 @@ function formatMbps(bytes: number): string {
 interface PerSrcEmaState {
   prevShreds: number;
   prevDedup: number;
+  prevParseFailed: number;
   prevTs: number;
   emaShreds: number;
   emaDedup: number;
+  emaParseFailed: number;
 }
 
 /** EMA hook for an array of per-source cumulative counters keyed by label. */
 function useMcastSrcsEma(
   srcs: McastSrc[] | undefined,
   halfLifeMs: number,
-): Map<string, { shreds: number; dedup: number }> {
+): Map<string, { shreds: number; dedup: number; parseFailed: number }> {
   const tauMs = halfLifeMs / Math.log(2);
   const stateRef = useRef<Map<string, PerSrcEmaState>>(new Map());
   const [result, setResult] = useState<
-    Map<string, { shreds: number; dedup: number }>
+    Map<string, { shreds: number; dedup: number; parseFailed: number }>
   >(new Map());
 
   useEffect(() => {
     if (!srcs || srcs.length === 0) return;
     const now = performance.now();
-    const newResult = new Map<string, { shreds: number; dedup: number }>();
+    const newResult = new Map<
+      string,
+      { shreds: number; dedup: number; parseFailed: number }
+    >();
 
     for (const src of srcs) {
       const state = stateRef.current.get(src.label);
@@ -90,43 +98,55 @@ function useMcastSrcsEma(
         stateRef.current.set(src.label, {
           prevShreds: src.shreds,
           prevDedup: src.dedup,
+          prevParseFailed: src.parse_failed,
           prevTs: now,
           emaShreds: 0,
           emaDedup: 0,
+          emaParseFailed: 0,
         });
-        newResult.set(src.label, { shreds: 0, dedup: 0 });
+        newResult.set(src.label, { shreds: 0, dedup: 0, parseFailed: 0 });
         continue;
       }
       const dtMs = now - state.prevTs;
       const dvShreds = src.shreds - state.prevShreds;
       const dvDedup = src.dedup - state.prevDedup;
-      if (dvShreds < 0 || dvDedup < 0) {
+      const dvParseFailed = src.parse_failed - state.prevParseFailed;
+      if (dvShreds < 0 || dvDedup < 0 || dvParseFailed < 0) {
         // Counter reset — reinitialize
         stateRef.current.set(src.label, {
           prevShreds: src.shreds,
           prevDedup: src.dedup,
+          prevParseFailed: src.parse_failed,
           prevTs: now,
           emaShreds: 0,
           emaDedup: 0,
+          emaParseFailed: 0,
         });
-        newResult.set(src.label, { shreds: 0, dedup: 0 });
+        newResult.set(src.label, { shreds: 0, dedup: 0, parseFailed: 0 });
         continue;
       }
       const w = -Math.expm1(-dtMs / tauMs);
       const rateShreds = dtMs > 0 ? (dvShreds / dtMs) * 1_000 : state.emaShreds;
       const rateDedup = dtMs > 0 ? (dvDedup / dtMs) * 1_000 : state.emaDedup;
+      const rateParseFailed =
+        dtMs > 0 ? (dvParseFailed / dtMs) * 1_000 : state.emaParseFailed;
       const emaShreds = state.emaShreds * (1 - w) + rateShreds * w;
       const emaDedup = state.emaDedup * (1 - w) + rateDedup * w;
+      const emaParseFailed =
+        state.emaParseFailed * (1 - w) + rateParseFailed * w;
       stateRef.current.set(src.label, {
         prevShreds: src.shreds,
         prevDedup: src.dedup,
+        prevParseFailed: src.parse_failed,
         prevTs: now,
         emaShreds,
         emaDedup,
+        emaParseFailed,
       });
       newResult.set(src.label, {
         shreds: Math.max(0, emaShreds),
         dedup: Math.max(0, emaDedup),
+        parseFailed: Math.max(0, emaParseFailed),
       });
     }
 
@@ -138,12 +158,13 @@ function useMcastSrcsEma(
 
 interface SankeyInnerProps {
   turbineShreds: number;
-  /** Per-source mcast data when available (IP:Port → shreds/s + dedup/s) */
+  /** Per-source mcast data when available (IP:Port → shreds/s + dedup/s + parseFailed/s) */
   mcastSrcs: Array<{
     label: string;
     senderLabel: string;
     shreds: number;
     dedup: number;
+    parseFailed: number;
   }> | null;
   /** Aggregate fallback when no per-source data */
   mcastShreds: number;
@@ -156,6 +177,8 @@ interface SankeyInnerProps {
   badSlot: number;
   /** shreds/s dropped by the smcast relay tile due to invalid leader Ed25519 signature. */
   sigFailed: number;
+  /** shreds/s dropped by the shred tile because fd_shred_parse returned NULL (turbine path). */
+  parseFailed: number;
   /** okay + completes from FEC resolver — each generates a repair/replay notification */
   repairShreds: number;
   /** FEC sets forwarded to txproc tile */
@@ -171,6 +194,7 @@ function SankeyInner({
   dedupSkipped,
   badSlot,
   sigFailed,
+  parseFailed,
   turbineFwdBytes,
   mcastFwdBytes,
   repairShreds,
@@ -202,10 +226,16 @@ function SankeyInner({
     const shredprocDedup = Math.max(0, dedupSkipped - mcastSrcDedupTotal);
     // sig_failed: mcast shreds dropped by smcast after dedup due to bad leader signature
     const sigFailedClipped = Math.min(sigFailed, Math.max(0, m - 1));
-    // Per-source dups bypass shredproc, so forwarded excludes only after_frag dups + sig failures
+    // parse_failed: turbine shreds dropped by shred tile due to parse failure
+    const parseFailedClipped = Math.min(parseFailed, Math.max(0, t - 1));
+    // Per-source dups bypass shredproc, so forwarded excludes only after_frag dups + sig failures + turbine parse failures
     const forwarded = Math.max(
       1,
-      totalIn - shredprocDedup - badSlotClipped - sigFailedClipped,
+      totalIn -
+        shredprocDedup -
+        badSlotClipped -
+        sigFailedClipped -
+        parseFailedClipped,
     );
 
     const avgShredBytes = 1200;
@@ -233,13 +263,15 @@ function SankeyInner({
       }
     }
 
-    // Column 1: drops (turbine dedup, per-src dedup)
+    // Column 1: drops (turbine dedup, per-src dedup, per-src parse_failed)
     if (shredprocDedup > 0)
       nodes.push({ id: NODE_TURBINE_DEDUP, fixedLayer: 1 });
     if (hasSrcs) {
       for (const src of mcastSrcs) {
         if (src.dedup > 0)
           nodes.push({ id: `${src.senderLabel} dedup`, fixedLayer: 1 });
+        if (src.parseFailed > 0)
+          nodes.push({ id: `${src.senderLabel} parse failed`, fixedLayer: 1 });
       }
     } else if (mcastSrcDedupTotal > 0) {
       nodes.push({ id: NODE_DEDUP_DROP, fixedLayer: 1 });
@@ -249,10 +281,12 @@ function SankeyInner({
     nodes.push({ id: NODE_UNICAST, fixedLayer: 2 });
     nodes.push({ id: NODE_MCAST_RCVR, fixedLayer: 2 });
 
-    // Column 3: forwarded + bad slot + sig_failed
+    // Column 3: forwarded + bad slot + sig_failed + turbine parse_failed
     nodes.push({ id: NODE_FORWARDED, fixedLayer: 3 });
     if (showBadSlot) nodes.push({ id: NODE_BAD_SLOT, fixedLayer: 3 });
     if (sigFailedClipped > 0) nodes.push({ id: NODE_SIG_FAIL, fixedLayer: 3 });
+    if (parseFailedClipped > 0)
+      nodes.push({ id: NODE_PARSE_FAIL, fixedLayer: 3 });
 
     // Column 4: downstream outputs
     if (turbineFwdShreds > 0)
@@ -269,9 +303,12 @@ function SankeyInner({
 
     // turbine in splits at col 0: main flow → unicast (col 2), dedup drop → col 1.
     const turbineAfterDedup = Math.max(1, t - shredprocDedup);
-    // unicast contributes (turbineAfterDedup - badSlotClipped) to forwarded;
-    // multicast contributes m. Both sum to forwarded (= totalIn - shredprocDedup - badSlotClipped).
-    const unicastToForwarded = Math.max(1, turbineAfterDedup - badSlotClipped);
+    // unicast contributes (turbineAfterDedup - badSlotClipped - parseFailedClipped) to forwarded;
+    // multicast contributes m. Both sum to forwarded.
+    const unicastToForwarded = Math.max(
+      1,
+      turbineAfterDedup - badSlotClipped - parseFailedClipped,
+    );
     const links: { source: string; target: string; value: number }[] = [
       {
         source: NODE_TURBINE_IN,
@@ -301,7 +338,7 @@ function SankeyInner({
 
     if (hasSrcs) {
       for (const src of mcastSrcs) {
-        // Main flow first (so it sorts above the dedup link in d3Sankey)
+        // Main flow first (so it sorts above the drain links in d3Sankey)
         links.push({
           source: src.label,
           target: NODE_MCAST_RCVR,
@@ -312,6 +349,13 @@ function SankeyInner({
             source: src.label,
             target: `${src.senderLabel} dedup`,
             value: src.dedup,
+          });
+        }
+        if (src.parseFailed > 0) {
+          links.push({
+            source: src.label,
+            target: `${src.senderLabel} parse failed`,
+            value: src.parseFailed,
           });
         }
       }
@@ -327,6 +371,13 @@ function SankeyInner({
         source: NODE_MCAST_RCVR,
         target: NODE_SIG_FAIL,
         value: sigFailedClipped,
+      });
+    }
+    if (parseFailedClipped > 0) {
+      links.push({
+        source: NODE_UNICAST,
+        target: NODE_PARSE_FAIL,
+        value: parseFailedClipped,
       });
     }
     links.push({
@@ -379,6 +430,7 @@ function SankeyInner({
     dedupSkipped,
     badSlot,
     sigFailed,
+    parseFailed,
     turbineFwdBytes,
     mcastFwdBytes,
     repairShreds,
@@ -422,6 +474,7 @@ export default function ShredSankey() {
   const mcastShredsRaw = liveNetworkMetrics?.ingress[MCAST_IDX] ?? 0;
   const dedupSkippedRaw = liveNetworkMetrics?.ingress[DEDUP_SKIPPED_IDX] ?? 0;
   const badSlotRaw = liveNetworkMetrics?.ingress[BAD_SLOT_IDX] ?? 0;
+  const parseFailedRaw = liveNetworkMetrics?.ingress[PARSE_FAILED_IDX] ?? 0;
   const sigFailedRaw = liveNetworkMetrics?.ingress[SIG_FAILED_IDX] ?? 0;
   const okayRaw = liveNetworkMetrics?.ingress[OKAY_IDX] ?? 0;
   const completesRaw = liveNetworkMetrics?.ingress[COMPLETES_IDX] ?? 0;
@@ -436,6 +489,7 @@ export default function ShredSankey() {
   const mcastShreds = useEmaValue(mcastShredsRaw, emaOptions);
   const dedupSkipped = useEmaValue(dedupSkippedRaw, emaOptions);
   const badSlot = useEmaValue(badSlotRaw, emaOptions);
+  const parseFailed = useEmaValue(parseFailedRaw, emaOptions);
   const sigFailed = useEmaValue(sigFailedRaw, emaOptions);
   const okay = useEmaValue(okayRaw, emaOptions);
   const completes = useEmaValue(completesRaw, emaOptions);
@@ -455,6 +509,7 @@ export default function ShredSankey() {
       senderLabel: src.label,
       shreds: Math.round(srcEmaMap.get(src.label)?.shreds ?? 0),
       dedup: Math.round(srcEmaMap.get(src.label)?.dedup ?? 0),
+      parseFailed: Math.round(srcEmaMap.get(src.label)?.parseFailed ?? 0),
     }));
   }, [rawSrcs, srcEmaMap]);
 
@@ -516,6 +571,7 @@ export default function ShredSankey() {
                   mcastShreds={Math.round(mcastShreds)}
                   dedupSkipped={Math.round(dedupSkipped)}
                   badSlot={Math.round(badSlot)}
+                  parseFailed={Math.round(parseFailed)}
                   sigFailed={Math.round(sigFailed)}
                   turbineFwdBytes={turbineFwdBytes}
                   mcastFwdBytes={mcastFwdBytes}
