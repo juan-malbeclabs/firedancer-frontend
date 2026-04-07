@@ -137,6 +137,18 @@ function NetworkMetricsCard({
               ) {
                 return;
               }
+              // In Egress, idx 0 ("turbine in" in protocol list) is actually turbine unicast bytes out
+              if (type === "Egress" && protocol === "turbine in") {
+                return (
+                  <TableRow
+                    key="turbine-unicast"
+                    type={type}
+                    value={value}
+                    label="turbine"
+                    maxOverride={dynMax}
+                  />
+                );
+              }
               // In Egress, idx 6 ("shreds" in protocol list) is actually mcast relay bytes out — show it
               if (type === "Egress" && protocol === "shreds") {
                 return (

@@ -519,6 +519,8 @@ export default function ShredSankey() {
     ? mcastSrcs.reduce((s, src) => s + src.shreds, 0)
     : 0;
   const hasData = turbineShreds > 0 || mcastShreds > 0 || mcastSrcTotal > 0;
+  const repairShreds = Math.round(okay + completes);
+  const isWarmingUp = hasData && repairShreds === 0;
 
   const dexfBatches = tilePrimaryMetric?.tile_primary_metric?.dexf_batches ?? 0;
   const dexfTxns = tilePrimaryMetric?.tile_primary_metric?.dexf_received ?? 0;
@@ -532,7 +534,7 @@ export default function ShredSankey() {
           <Text className={tableStyles.headerText}>Shred Flow</Text>
           <Flex gap="4">
             <Text size="1" style={{ opacity: 0.6 }}>
-              turbine in: {formatMbps(turbineBytes)}
+              turbine: {formatMbps(turbineBytes)}
             </Text>
             {mcastFwdBytes > 0 && (
               <Text size="1" style={{ opacity: 0.6 }}>
@@ -561,6 +563,12 @@ export default function ShredSankey() {
             )}
           </Flex>
         </Flex>
+        {isWarmingUp && (
+          <Text size="1" style={{ opacity: 0.55, fontStyle: "italic" }}>
+            Warming up — loading epoch data, shreds arriving but no FEC sets
+            completed yet
+          </Text>
+        )}
         {hasData ? (
           <div style={{ flexGrow: 1, minHeight: 234 }}>
             <AutoSizer>
@@ -575,7 +583,7 @@ export default function ShredSankey() {
                   sigFailed={Math.round(sigFailed)}
                   turbineFwdBytes={turbineFwdBytes}
                   mcastFwdBytes={mcastFwdBytes}
-                  repairShreds={Math.round(okay + completes)}
+                  repairShreds={repairShreds}
                   txprocFecSets={Math.round(txprocFecSets)}
                   height={height}
                   width={width}
